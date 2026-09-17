@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/backend/">
+    <Project Path="src/backend/Kwestie.Api/Kwestie.Api.csproj" />
+    <Project Path="src/backend/Kwestie.Application/Kwestie.Application.csproj" />
+    <Project Path="src/backend/Kwestie.Domain/Kwestie.Domain.csproj" />
+    <Project Path="src/backend/Kwestie.Infrastructure/Kwestie.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Kwestie.Application.Tests/Kwestie.Application.Tests.csproj" />
+    <Project Path="tests/Kwestie.Domain.Tests/Kwestie.Domain.Tests.csproj" />
+    <Project Path="tests/Kwestie.IntegrationTests/Kwestie.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

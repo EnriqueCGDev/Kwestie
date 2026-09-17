@@ -1,0 +1,6 @@
+@Kwestie.Api_HostAddress = http://localhost:5020
+
+GET {{Kwestie.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
