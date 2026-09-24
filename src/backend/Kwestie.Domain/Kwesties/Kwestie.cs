@@ -5,6 +5,7 @@ namespace Kwestie.Domain.Kwesties;
 public class Kwestie
 {
     public Guid Id { get; }
+    public long Number { get; private set; }
     public Guid WorkspaceId { get; }
     public string Title { get; }
     public string Description { get; }
@@ -28,6 +29,31 @@ public class Kwestie
         DateTimeOffset createdAt,
         Guid? categoryId = null)
     {
+        if (id == Guid.Empty)
+        {
+            throw new DomainException("A kwestie ID must not be empty.");
+        }
+
+        if (workspaceId == Guid.Empty)
+        {
+            throw new DomainException("A workspace ID must not be empty.");
+        }
+
+        if (createdById == Guid.Empty)
+        {
+            throw new DomainException("A creator ID must not be empty.");
+        }
+
+        if (categoryId == Guid.Empty)
+        {
+            throw new DomainException("A category ID must not be empty when provided.");
+        }
+
+        if (!Enum.IsDefined(priority))
+        {
+            throw new DomainException("A kwestie priority must be a defined value.");
+        }
+
         if (string.IsNullOrWhiteSpace(title))
         {
             throw new DomainException("A kwestie title is required.");

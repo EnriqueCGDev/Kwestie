@@ -35,6 +35,53 @@ public class KwestieTests
         Assert.Null(kwestie.ClosedAt);
     }
 
+    [Fact]
+    public void Constructor_LeavesNumberUnassigned()
+    {
+        Assert.Equal(0L, CreateKwestie().Number);
+    }
+
+    [Fact]
+    public void Constructor_EmptyId_ThrowsDomainException()
+    {
+        Assert.Throws<DomainException>(() => new KwestieEntity(
+            Guid.Empty, Guid.NewGuid(), "Title", "Description",
+            KwestiePriority.Normal, Guid.NewGuid(), CreatedAt));
+    }
+
+    [Fact]
+    public void Constructor_EmptyWorkspaceId_ThrowsDomainException()
+    {
+        Assert.Throws<DomainException>(() => new KwestieEntity(
+            Guid.NewGuid(), Guid.Empty, "Title", "Description",
+            KwestiePriority.Normal, Guid.NewGuid(), CreatedAt));
+    }
+
+    [Fact]
+    public void Constructor_EmptyCreatedById_ThrowsDomainException()
+    {
+        Assert.Throws<DomainException>(() => new KwestieEntity(
+            Guid.NewGuid(), Guid.NewGuid(), "Title", "Description",
+            KwestiePriority.Normal, Guid.Empty, CreatedAt));
+    }
+
+    [Fact]
+    public void Constructor_EmptyCategoryId_ThrowsDomainException()
+    {
+        Assert.Throws<DomainException>(() => new KwestieEntity(
+            Guid.NewGuid(), Guid.NewGuid(), "Title", "Description",
+            KwestiePriority.Normal, Guid.NewGuid(), CreatedAt, Guid.Empty));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(5)]
+    public void Constructor_UndefinedPriority_ThrowsDomainException(int priority)
+    {
+        Assert.Throws<DomainException>(() => CreateKwestie(priority: (KwestiePriority)priority));
+    }
+
     [Theory]
     [InlineData(KwestiePriority.Low)]
     [InlineData(KwestiePriority.Normal)]

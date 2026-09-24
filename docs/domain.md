@@ -10,7 +10,7 @@ A `Kwestie` represents an issue, request, or piece of work that requires attenti
 
 It is the central entity of the initial domain.
 
-Current and accepted properties are:
+Current properties are:
 
 ```text
 Id
@@ -29,7 +29,7 @@ ResolvedAt
 ClosedAt
 ```
 
-`Number` is an accepted part of the model but is not yet implemented in the entity.
+`Number` is implemented as a `long` property with a private setter. It is not received by the public constructor, and no manual assignment method is provided.
 
 A newly created, non-persisted Kwestie has `Number = 0`, which represents an unassigned number.
 
@@ -120,7 +120,7 @@ Priority is part of the domain state.
 
 Changing priority is not implemented yet.
 
-Values outside the defined enum range should not be accepted once the corresponding constructor invariant is implemented.
+The constructor rejects undefined `KwestiePriority` values with `DomainException`.
 
 ## Creation Rules
 
@@ -130,6 +130,7 @@ The current implementation:
 - receives `WorkspaceId`
 - receives `CreatedById`
 - receives `CreatedAt`
+- initializes `Number` to `0` (unassigned)
 - requires `Title`
 - rejects null, empty, or whitespace-only titles
 - stores `Title` using `Trim()`
@@ -143,7 +144,7 @@ The current implementation:
 - starts without `ClosedAt`
 - may optionally receive `CategoryId`
 
-The next accepted invariants to add are:
+The constructor enforces these invariants:
 
 - `Id` must not be `Guid.Empty`
 - `WorkspaceId` must not be `Guid.Empty`
@@ -151,7 +152,7 @@ The next accepted invariants to add are:
 - `CategoryId`, when present, must not be `Guid.Empty`
 - `Priority` must be a defined `KwestiePriority` value
 
-These invariants are accepted decisions but are not considered implemented until the code and tests contain them.
+Violations of these invariants raise `DomainException` and are covered by unit tests.
 
 Existence or workspace membership of related identifiers cannot be established by the `Kwestie` entity alone.
 
@@ -318,14 +319,16 @@ The current implemented scope is:
 
 ```text
 Kwestie creation behavior
+Number initialized to 0 (unassigned)
+Constructor identifier and priority invariants
 Open -> InProgress
 InProgress -> Resolved
 Resolved -> Closed
 DomainException on invalid transitions
-Unit tests for current lifecycle behavior
+Unit tests for creation invariants and current lifecycle behavior
 ```
 
-The next accepted domain refinement is to add `Number` and the constructor invariants documented above.
+Assignment of `Number` during persistence and the derived visible reference remain unimplemented.
 
 Persistence, repositories, authentication, workspace behavior, assignment, comments, history, and reopening remain outside the current implementation milestone.
 
