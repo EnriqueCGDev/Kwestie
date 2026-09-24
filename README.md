@@ -33,7 +33,7 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 
 Kwestie is under active development.
 
-The current milestone focuses on the core domain model before persistence, authentication, and application use cases are introduced.
+The current milestone covers the core domain model and the first application use case, before real persistence and authentication are introduced.
 
 Implemented so far:
 
@@ -43,6 +43,9 @@ Implemented so far:
 - Initial `Kwestie` entity
 - `Open -> InProgress -> Resolved -> Closed` lifecycle
 - Unit tests for the current domain behavior
+- Create Kwestie application use case and its unit tests
+
+Create Kwestie uses an Application-defined repository contract; no real persistence implementation or Create Kwestie API endpoint exists yet. Workspace and membership checks required before exposing this use case are not implemented.
 
 Persistence, authentication, workspaces, assignment, comments, history, search, and dashboard functionality are not implemented yet.
 
@@ -91,6 +94,7 @@ Kwestie/
 │
 ├── docs/
 │   ├── architecture.md
+│   ├── application.md
 │   └── domain.md
 │
 ├── Kwestie.slnx
@@ -114,7 +118,7 @@ Kwestie/
 
 These features will be implemented incrementally and may be refined as their domain rules are defined.
 
-## Running the Current Domain Tests
+## Running the Current Tests
 
 Requirements:
 
@@ -123,10 +127,10 @@ Requirements:
 From the repository root:
 
 ```bash
-dotnet test tests/Kwestie.Domain.Tests
+dotnet test
 ```
 
-The current domain tests do not require SQL Server, EF Core, or any external infrastructure.
+The current Domain and Application tests do not require SQL Server, EF Core, or any external infrastructure. The Integration test project still contains only a placeholder test.
 
 ## Development Principles
 
@@ -142,6 +146,7 @@ The current domain tests do not require SQL Server, EF Core, or any external inf
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Application Layer](docs/application.md)
 - [Domain Model](docs/domain.md)
 
 These documents evolve with the implementation and act as the current source of truth for architectural and domain decisions.

@@ -41,7 +41,9 @@ Application depends on Domain.
 
 Application may define contracts that it needs from external systems.
 
-Example:
+The first implemented use case is Create Kwestie. Its handler creates the Domain entity using a generated ID and .NET `TimeProvider`, awaits `IKwestieRepository.AddAsync`, and returns the entity ID. The repository contract lives in Application; its Infrastructure implementation is still pending. No DI registration or API endpoint has been added for this use case.
+
+Current contract and planned implementation:
 
 ```text
 Kwestie.Application
@@ -52,7 +54,7 @@ IKwestieRepository
 
 Kwestie.Infrastructure
         |
-        | implements
+        | will implement
         v
 IKwestieRepository
 ```
@@ -222,11 +224,11 @@ The solution currently contains:
 - `Kwestie.Application.Tests`
 - `Kwestie.IntegrationTests`
 
-At the current stage, meaningful automated coverage exists in `Kwestie.Domain.Tests`.
+At the current stage, meaningful automated coverage exists in `Kwestie.Domain.Tests` and `Kwestie.Application.Tests`.
 
-The Application and Integration test projects are scaffolding for future work and should not be interpreted as completed test coverage.
+Application tests cover Create Kwestie using a small repository fake and a controlled .NET `TimeProvider`, without mocking libraries. The Integration test project remains scaffolding and should not be interpreted as completed integration coverage.
 
-Domain tests should run without database, API, or infrastructure dependencies.
+Domain and current Application tests run without database, API, or infrastructure dependencies.
 
 ## Working Agreement
 
