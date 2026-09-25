@@ -69,10 +69,10 @@ Contains technical implementations required by the application.
 
 Implemented responsibilities include EF Core SQL Server persistence, Fluent API mapping, and `KwestieRepository`. `AddInfrastructure` registers the context and repository; the API supplies `ConnectionStrings:Kwestie` from configuration.
 
+Infrastructure also contains `ApplicationUser : IdentityUser<Guid>` and registers Identity Core with EF stores using the same `KwestieDbContext`. `ApplicationUser` is not a Domain entity. Neither Domain nor Application depends on Identity types.
+
 Planned responsibilities include:
 
-- ASP.NET Core Identity
-- Password hashing
 - JWT generation
 - Refresh-token persistence
 - External services
@@ -191,7 +191,9 @@ JWT access token
 refresh token
 ```
 
-This is planned and not yet implemented.
+The Identity infrastructure base is implemented with `AddIdentityCore<ApplicationUser>` and EF stores. It does not register authentication cookies, JWT, external providers, or endpoints. Register/Login use cases and token issuance are still pending, so authentication is not complete.
+
+The context uses `IdentityUserContext<ApplicationUser, Guid>` without global roles. Future Workspace Admin/Member roles are separate domain concepts, not global Identity roles. No roles are registered or seeded. `20260925192607_AddIdentity` was applied manually to the local `Kwestie` database; the Identity infrastructure base is integrated and migrated locally. Register, Login, JWT, and refresh tokens remain unimplemented.
 
 OAuth 2.0 / OpenID Connect may be introduced later if Kwestie needs external identity providers, enterprise SSO, or third-party clients.
 
@@ -200,6 +202,8 @@ OAuth 2.0 / OpenID Connect may be introduced later if Kwestie needs external ide
 SQL Server through Entity Framework Core is the accepted persistence direction.
 
 The persistence implementation and `InitialCreate` migration are present. The migration was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, SQL Server IDENTITY generation, EF's update of `Number`, and retrieval through a separate DbContext.
+
+`AddIdentity` also exists and was applied manually to the same database. AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens now exist physically in SQL Server, and the migration is recorded in `__EFMigrationsHistory`.
 
 Persistence configuration belongs in Infrastructure.
 

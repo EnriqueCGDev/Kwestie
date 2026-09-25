@@ -19,10 +19,11 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 - Clean Architecture project structure
 - EF Core / SQL Server persistence infrastructure
 - Real SQL Server repository integration test
+- ASP.NET Core Identity base infrastructure (Guid users and EF stores)
 
 ### Planned
 
-- ASP.NET Core Identity
+- Register and Login use cases
 - JWT access tokens
 - Refresh tokens
 - Docker
@@ -32,7 +33,7 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 
 Kwestie is under active development.
 
-The current milestone covers the core domain model, the first application use case, and SQL Server persistence infrastructure. Authentication remains pending.
+The current milestone covers the core domain model, the first application use case, SQL Server persistence, and base ASP.NET Core Identity infrastructure. `20260925192607_AddIdentity` was applied manually to the local `Kwestie` database, which now contains AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens. Authentication remains incomplete: Register, Login, JWT, and refresh tokens are not implemented.
 
 Implemented so far:
 
@@ -46,7 +47,7 @@ Implemented so far:
 
 Create Kwestie has an Infrastructure repository implementation using EF Core and SQL Server. `InitialCreate` exists and was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, generated Number, retrieval, and cleanup. There is still no Create Kwestie API endpoint; workspace and membership checks required before exposing this use case are not implemented.
 
-Authentication, workspaces, assignment, comments, history, search, and dashboard functionality are not implemented yet.
+Full authentication is not implemented yet. Register, Login, JWT, refresh tokens, workspaces, assignment, comments, history, search, and dashboard functionality remain pending.
 
 ## Architecture
 

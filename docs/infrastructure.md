@@ -8,6 +8,18 @@ Infrastructure implements technical details required by Application and depends 
 
 EF Core 10 and its SQL Server provider are configured through `KwestieDbContext`. The context receives typed options and exposes `Kwesties`. `KwestieConfiguration` applies Fluent API mapping. The API registers the context and scoped repository through `AddInfrastructure(connectionString)`; registration does not create or connect to the database.
 
+## Identity
+
+ASP.NET Core Identity is integrated exclusively in Infrastructure. `Identity/ApplicationUser` derives from `IdentityUser<Guid>` without additional properties. Domain and Application do not depend on Identity types.
+
+`KwestieDbContext` derives from `IdentityUserContext<ApplicationUser, Guid>`, sharing the existing SQL Server `Kwestie` database. It calls the base model configuration before applying `KwestieConfiguration` and retains its `Kwesties` DbSet. `CreatedById` and `AssignedToId` remain Guid references without navigations or foreign keys to ApplicationUser.
+
+`AddInfrastructure` registers `AddIdentityCore<ApplicationUser>().AddEntityFrameworkStores<KwestieDbContext>()`. Built-in Identity options are retained without new password policies. There are no global role services or role tables in this model; future Workspace Admin/Member roles are unrelated to global Identity roles.
+
+AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens are mapped in the model and now exist physically in the local SQL Server `Kwestie` database after the manual application of `AddIdentity`. These tables do not imply implemented external-login or application refresh-token features. No authentication cookies, external providers, default token providers, or endpoints are registered. Register, Login, JWT, refresh tokens, email confirmation, and password recovery remain unimplemented.
+
+Database-free tests verify Guid user keys, Identity user tables, the absence of roles and Kwestie-to-user foreign keys, and resolution of UserManager with an EF user store sharing the registered context.
+
 ## Kwestie Persistence
 
 The `Kwesties` table uses the Application-generated Guid `Id` as its primary key, with database generation disabled. `Number` is a SQL Server `bigint IDENTITY(1,1)` with a unique index, global across workspaces. Gaps are permitted. On successful insertion, EF reads the generated number back into the entity; an unpersisted entity starts at zero.
@@ -36,10 +48,14 @@ The current local SQL Server runs in Docker. The local server is `localhost,1433
 
 Migrations belong to Infrastructure. `20260924234735_InitialCreate` exists and was applied locally before the real integration test was added. The local `Kwestie` database exists. Neither the test nor startup creates databases or applies migrations automatically; the test presupposes this local setup.
 
+`20260925192607_AddIdentity` exists and was applied manually to the local `Kwestie` database. It is recorded in `__EFMigrationsHistory` and created AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens in the same database used by `KwestieDbContext`.
+
+The real KwestieRepository round-trip test accesses the Kwesties table and does not query or create Identity users. Identity model and registration tests do not access SQL Server. Applying AddIdentity establishes the physical schema, but does not constitute automated verification of Identity user persistence.
+
 EF Core Design is a private tooling dependency in Infrastructure and the API startup project, supporting the Infrastructure target/API startup workflow. Future migration generation and application remain manual steps after model review and local User Secrets configuration.
 
 ## Current Implementation Scope
 
-Implemented: SQL Server context and mapping, repository insertion with saving, dependency injection registration, shared API/test User Secrets configuration, InitialCreate, and a verified real SQL Server repository round-trip test. Existing model and materialization tests remain available without a database.
+Implemented: SQL Server context and mapping, repository insertion with saving, dependency injection registration, shared API/test User Secrets configuration, InitialCreate and AddIdentity applied locally, a verified real SQL Server repository round-trip test, and the Identity infrastructure base with Guid users and EF stores. Model, materialization, and Identity registration tests are available without a database.
 
-Pending: workspace/membership checks and an HTTP endpoint for Create Kwestie. The use case remains unexposed.
+Pending: Register/Login use cases, JWT and refresh tokens, workspace/membership checks, and an HTTP endpoint for Create Kwestie. The use case remains unexposed.
