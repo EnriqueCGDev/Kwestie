@@ -17,15 +17,14 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 - SCSS
 - xUnit
 - Clean Architecture project structure
+- EF Core / SQL Server persistence infrastructure
+- Real SQL Server repository integration test
 
 ### Planned
 
-- Entity Framework Core
-- SQL Server
 - ASP.NET Core Identity
 - JWT access tokens
 - Refresh tokens
-- Integration testing against real infrastructure
 - Docker
 - CI/CD
 
@@ -33,7 +32,7 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 
 Kwestie is under active development.
 
-The current milestone covers the core domain model and the first application use case, before real persistence and authentication are introduced.
+The current milestone covers the core domain model, the first application use case, and SQL Server persistence infrastructure. Authentication remains pending.
 
 Implemented so far:
 
@@ -45,9 +44,9 @@ Implemented so far:
 - Unit tests for the current domain behavior
 - Create Kwestie application use case and its unit tests
 
-Create Kwestie uses an Application-defined repository contract; no real persistence implementation or Create Kwestie API endpoint exists yet. Workspace and membership checks required before exposing this use case are not implemented.
+Create Kwestie has an Infrastructure repository implementation using EF Core and SQL Server. `InitialCreate` exists and was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, generated Number, retrieval, and cleanup. There is still no Create Kwestie API endpoint; workspace and membership checks required before exposing this use case are not implemented.
 
-Persistence, authentication, workspaces, assignment, comments, history, search, and dashboard functionality are not implemented yet.
+Authentication, workspaces, assignment, comments, history, search, and dashboard functionality are not implemented yet.
 
 ## Architecture
 
@@ -95,7 +94,8 @@ Kwestie/
 ├── docs/
 │   ├── architecture.md
 │   ├── application.md
-│   └── domain.md
+│   ├── domain.md
+│   └── infrastructure.md
 │
 ├── Kwestie.slnx
 └── README.md
@@ -130,7 +130,9 @@ From the repository root:
 dotnet test
 ```
 
-The current Domain and Application tests do not require SQL Server, EF Core, or any external infrastructure. The Integration test project still contains only a placeholder test.
+The current Domain and Application tests do not require SQL Server, EF Core, or any external infrastructure. IntegrationTests retains database-free EF model/materialization checks and now also runs a real SQL Server repository test. Full `dotnet test` requires the existing local `Kwestie` database with `InitialCreate` applied and `ConnectionStrings:Kwestie` configured in the API's shared .NET User Secrets. The real test deletes its own row in `finally`; it does not create the database or apply migrations.
+
+API and IntegrationTests use the same `UserSecretsId`; do not store the connection string or passwords in the repository. The development SQL Server currently runs in Docker, independently of any application Docker configuration in this repository. `dotnet build` does not require SQL Server. See [Infrastructure configuration](docs/infrastructure.md#configuration).
 
 ## Development Principles
 
@@ -147,6 +149,7 @@ The current Domain and Application tests do not require SQL Server, EF Core, or 
 
 - [Architecture](docs/architecture.md)
 - [Application Layer](docs/application.md)
+- [Infrastructure Layer](docs/infrastructure.md)
 - [Domain Model](docs/domain.md)
 
 These documents evolve with the implementation and act as the current source of truth for architectural and domain decisions.

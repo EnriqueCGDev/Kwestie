@@ -1,0 +1,18 @@
+using Kwestie.Application.Kwesties;
+using Kwestie.Infrastructure.Persistence;
+using Kwestie.Infrastructure.Persistence.Repositories;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Kwestie.Infrastructure;
+
+public static class DependencyInjection
+{
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        services.AddDbContext<KwestieDbContext>(options => options.UseSqlServer(connectionString));
+        services.AddScoped<IKwestieRepository, KwestieRepository>();
+        return services;
+    }
+}

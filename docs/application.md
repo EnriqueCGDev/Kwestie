@@ -40,11 +40,11 @@ The caller's cancellation token is passed to `AddAsync`. `DomainException` propa
 
 ## Result
 
-`CreateKwestieResult` is an immutable record containing only `Id`, matching the entity sent to the repository. It does not return `Number` or `Key` and does not produce a visible reference. Real persistence, which will assign `Number`, is not implemented; the entity's number remains `0` in the current tests.
+`CreateKwestieResult` is an immutable record containing only `Id`, matching the entity sent to the repository. It does not return `Number` or `Key` and does not produce a visible reference. Infrastructure's real SQL Server repository test verifies generated-number assignment against the existing local database with InitialCreate applied. The entity's number remains `0` in Application tests using the repository fake.
 
 ## Application Abstractions
 
-`IKwestieRepository` lives in Application and represents the current use case's external dependency. Its only operation is `Task AddAsync(Kwestie kwestie, CancellationToken cancellationToken = default)`. Infrastructure will implement this contract later. There is no repository implementation, `SaveChanges`, or unit of work in this feature.
+`IKwestieRepository` lives in Application and represents the current use case's external dependency. Its only operation is `Task AddAsync(Kwestie kwestie, CancellationToken cancellationToken = default)`. Infrastructure implements it with EF Core, including `SaveChangesAsync` within `AddAsync`. Application has no separate saving or unit-of-work abstraction.
 
 ## Time
 
@@ -62,4 +62,4 @@ Implemented: `CreateKwestieCommand`, `CreateKwestieHandler`, `CreateKwestieResul
 
 Tests use a local recording repository fake and a fixed time provider. They cover the created entity and result, generated ID, timestamps, unassigned number, cancellation-token forwarding, waiting for the repository, and domain rejection without a repository call.
 
-Real persistence, number generation, visible references, cross-entity checks, authorization, DI registration, and an API endpoint remain outside this implementation.
+Infrastructure provides persistence and generated-number mapping, with context and repository DI registration, InitialCreate, and a verified real repository round trip against the existing local database. Visible references, cross-entity checks, authorization, handler registration, and an API endpoint remain pending.

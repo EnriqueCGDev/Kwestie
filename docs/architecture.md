@@ -41,9 +41,9 @@ Application depends on Domain.
 
 Application may define contracts that it needs from external systems.
 
-The first implemented use case is Create Kwestie. Its handler creates the Domain entity using a generated ID and .NET `TimeProvider`, awaits `IKwestieRepository.AddAsync`, and returns the entity ID. The repository contract lives in Application; its Infrastructure implementation is still pending. No DI registration or API endpoint has been added for this use case.
+The first implemented use case is Create Kwestie. Its handler creates the Domain entity using a generated ID and .NET `TimeProvider`, awaits `IKwestieRepository.AddAsync`, and returns the entity ID. Infrastructure implements and registers that repository with an EF Core SQL Server context. There is no Create Kwestie API endpoint or handler registration yet.
 
-Current contract and planned implementation:
+Current contract and implementation:
 
 ```text
 Kwestie.Application
@@ -54,7 +54,7 @@ IKwestieRepository
 
 Kwestie.Infrastructure
         |
-        | will implement
+        | implements
         v
 IKwestieRepository
 ```
@@ -67,11 +67,10 @@ Kwestie may use a lightweight CQRS style where separating commands and queries i
 
 Contains technical implementations required by the application.
 
+Implemented responsibilities include EF Core SQL Server persistence, Fluent API mapping, and `KwestieRepository`. `AddInfrastructure` registers the context and repository; the API supplies `ConnectionStrings:Kwestie` from configuration.
+
 Planned responsibilities include:
 
-- Entity Framework Core
-- SQL Server persistence
-- Repository implementations
 - ASP.NET Core Identity
 - Password hashing
 - JWT generation
@@ -200,13 +199,13 @@ OAuth 2.0 / OpenID Connect may be introduced later if Kwestie needs external ide
 
 SQL Server through Entity Framework Core is the accepted persistence direction.
 
-Persistence is not yet implemented.
+The persistence implementation and `InitialCreate` migration are present. The migration was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, SQL Server IDENTITY generation, EF's update of `Number`, and retrieval through a separate DbContext.
 
 Persistence configuration belongs in Infrastructure.
 
 Domain must not contain EF Core attributes or persistence-specific dependencies.
 
-EF Core Fluent API will be preferred for entity configuration.
+EF Core Fluent API configures the current entity. Migrations belong to Infrastructure and are applied manually; tests do not create databases or apply migrations. See [Infrastructure Layer](infrastructure.md) for configuration and scope.
 
 ## API Style
 
@@ -224,9 +223,9 @@ The solution currently contains:
 - `Kwestie.Application.Tests`
 - `Kwestie.IntegrationTests`
 
-At the current stage, meaningful automated coverage exists in `Kwestie.Domain.Tests` and `Kwestie.Application.Tests`.
+At the current stage, meaningful automated coverage exists in all three test projects.
 
-Application tests cover Create Kwestie using a small repository fake and a controlled .NET `TimeProvider`, without mocking libraries. The Integration test project remains scaffolding and should not be interpreted as completed integration coverage.
+Application tests cover Create Kwestie using a small repository fake and a controlled .NET `TimeProvider`, without mocking libraries. IntegrationTests retains EF model and materialization checks without a connection, and includes a real SQL Server repository test. It reads the same User Secret as API, uses the existing migrated database, and removes its row in `finally`. The old placeholder test has been removed.
 
 Domain and current Application tests run without database, API, or infrastructure dependencies.
 

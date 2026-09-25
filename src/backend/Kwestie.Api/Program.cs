@@ -1,4 +1,14 @@
+using Kwestie.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
+
+var connectionString = builder.Configuration.GetConnectionString("Kwestie");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException(
+        "ConnectionStrings:Kwestie is required. Configure it with .NET User Secrets for local development.");
+}
+builder.Services.AddInfrastructure(connectionString);
 
 // Add services to the container.
 
