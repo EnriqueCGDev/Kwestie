@@ -14,9 +14,17 @@ ASP.NET Core Identity is integrated exclusively in Infrastructure. `Identity/App
 
 `KwestieDbContext` derives from `IdentityUserContext<ApplicationUser, Guid>`, sharing the existing SQL Server `Kwestie` database. It calls the base model configuration before applying `KwestieConfiguration` and retains its `Kwesties` DbSet. `CreatedById` and `AssignedToId` remain Guid references without navigations or foreign keys to ApplicationUser.
 
-`AddInfrastructure` registers `AddIdentityCore<ApplicationUser>().AddEntityFrameworkStores<KwestieDbContext>()`. Built-in Identity options are retained without new password policies. There are no global role services or role tables in this model; future Workspace Admin/Member roles are unrelated to global Identity roles.
+`AddInfrastructure` registers Identity Core with EF stores and sets `options.User.RequireUniqueEmail = true`. Default password policies remain unchanged. There are no global role services or role tables in this model; future Workspace Admin/Member roles are unrelated to global Identity roles.
 
-AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens are mapped in the model and now exist physically in the local SQL Server `Kwestie` database after the manual application of `AddIdentity`. These tables do not imply implemented external-login or application refresh-token features. No authentication cookies, external providers, default token providers, or endpoints are registered. Register, Login, JWT, refresh tokens, email confirmation, and password recovery remain unimplemented.
+AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens are mapped in the model and now exist physically in the local SQL Server `Kwestie` database after the manual application of `AddIdentity`. These tables do not imply implemented external-login or application refresh-token features. No authentication cookies, external providers, default token providers, or endpoints are registered. Login, JWT, refresh tokens, email confirmation, and password recovery remain unimplemented.
+
+### User registration
+
+`Identity/UserRegistration` implements Application's `IUserRegistration` using `UserManager<ApplicationUser>`. It generates a Guid, sets Email and UserName to the submitted email, and calls `CreateAsync(user, password)`. Identity validates the input and password, hashes the password, normalizes email/username, and persists the user in AspNetUsers. The adapter neither assigns PasswordHash nor writes directly through the DbContext. Identity error descriptions become Application-owned strings in RegisterUserResult.
+
+The adapter is scoped in AddInfrastructure; Application handlers are not registered there. Cancellation is checked before CreateAsync, which does not accept a CancellationToken. Register returns only a user ID or errors, without tokens or an HTTP endpoint.
+
+A real SQL Server test registers a unique email, reads the user through a separate context, checks normalized values and the stored hash, verifies the password through Identity's PasswordHasher, and confirms rejection of the same email. Its finally block removes only users with that test's unique email and verifies cleanup. No credentials or hashes are logged.
 
 Database-free tests verify Guid user keys, Identity user tables, the absence of roles and Kwestie-to-user foreign keys, and resolution of UserManager with an EF user store sharing the registered context.
 
@@ -50,7 +58,7 @@ Migrations belong to Infrastructure. `20260924234735_InitialCreate` exists and w
 
 `20260925192607_AddIdentity` exists and was applied manually to the local `Kwestie` database. It is recorded in `__EFMigrationsHistory` and created AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens in the same database used by `KwestieDbContext`.
 
-The real KwestieRepository round-trip test accesses the Kwesties table and does not query or create Identity users. Identity model and registration tests do not access SQL Server. Applying AddIdentity establishes the physical schema, but does not constitute automated verification of Identity user persistence.
+The KwestieRepository round-trip test accesses Kwesties. Identity model and service-registration tests remain database-free; the new user-registration integration test exercises AspNetUsers on SQL Server. Register and RequireUniqueEmail do not change the schema, and the test verifies that EF reports no pending model changes before writing. No new migration was required.
 
 EF Core Design is a private tooling dependency in Infrastructure and the API startup project, supporting the Infrastructure target/API startup workflow. Future migration generation and application remain manual steps after model review and local User Secrets configuration.
 
@@ -58,4 +66,4 @@ EF Core Design is a private tooling dependency in Infrastructure and the API sta
 
 Implemented: SQL Server context and mapping, repository insertion with saving, dependency injection registration, shared API/test User Secrets configuration, InitialCreate and AddIdentity applied locally, a verified real SQL Server repository round-trip test, and the Identity infrastructure base with Guid users and EF stores. Model, materialization, and Identity registration tests are available without a database.
 
-Pending: Register/Login use cases, JWT and refresh tokens, workspace/membership checks, and an HTTP endpoint for Create Kwestie. The use case remains unexposed.
+Register is implemented through UserManager with real user-persistence coverage. Pending: Login, JWT and refresh tokens, workspace/membership checks, and HTTP endpoints for Register and Create Kwestie. Both use cases remain unexposed.

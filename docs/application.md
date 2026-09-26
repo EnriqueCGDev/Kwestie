@@ -6,9 +6,15 @@ Application orchestrates use cases, depends on Domain, and defines the abstracti
 
 ## Feature Organization
 
-The implemented feature is organized as follows:
+The implemented features are organized as follows:
 
 ```text
+Authentication/
+└── Register/
+    ├── IUserRegistration.cs
+    ├── RegisterUserCommand.cs
+    ├── RegisterUserHandler.cs
+    └── RegisterUserResult.cs
 Kwesties/
 ├── IKwestieRepository.cs
 └── Create/
@@ -50,6 +56,14 @@ The caller's cancellation token is passed to `AddAsync`. `DomainException` propa
 
 The handler uses .NET `TimeProvider` rather than reading the real clock directly. Tests supply a small subclass returning a fixed timestamp; no custom clock interface or additional package is needed.
 
+## Register
+
+`RegisterUserCommand` contains only Email and Password. `RegisterUserHandler` forwards both values and the CancellationToken to the feature-specific `IUserRegistration.RegisterAsync` contract. Application does not reference UserManager, ApplicationUser, IdentityResult, or other Identity types, and does not hash passwords or write users through EF.
+
+The current account convention is UserName = Email. Infrastructure implements registration through Identity. `RegisterUserResult` reports `Succeeded`, a nullable Guid `UserId`, and a read-only collection of error strings. Success includes the user ID and no errors; rejection includes error descriptions and no user ID. Infrastructure exceptions are not converted into validation failures.
+
+Cancellation is forwarded to Infrastructure, which checks it before invoking Identity. UserManager.CreateAsync has no CancellationToken overload, so cancellation cannot interrupt that operation through this API. Register does not emit tokens and has no HTTP endpoint or handler DI registration. Login, JWT, and refresh tokens remain pending.
+
 ## Validation Boundaries
 
 Domain enforces intrinsic rules using the entity's state and input data. Application leaves those checks to the constructor without duplicating, catching, or translating them.
@@ -59,6 +73,8 @@ Checks requiring other data or coordination belong to Application orchestration.
 ## Current Implementation Scope
 
 Implemented: `CreateKwestieCommand`, `CreateKwestieHandler`, `CreateKwestieResult`, `IKwestieRepository`, and feature tests in `Kwestie.Application.Tests/Kwesties/Create`.
+
+Register is also implemented through RegisterUserCommand, RegisterUserHandler, RegisterUserResult, and IUserRegistration. Unit tests use a small fake to verify input/cancellation forwarding and success/error results; a separate Infrastructure integration test verifies real Identity user persistence.
 
 Tests use a local recording repository fake and a fixed time provider. They cover the created entity and result, generated ID, timestamps, unassigned number, cancellation-token forwarding, waiting for the repository, and domain rejection without a repository call.
 

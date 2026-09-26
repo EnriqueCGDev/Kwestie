@@ -20,10 +20,11 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 - EF Core / SQL Server persistence infrastructure
 - Real SQL Server repository integration test
 - ASP.NET Core Identity base infrastructure (Guid users and EF stores)
+- Register use case with real SQL Server user-persistence test (no HTTP endpoint)
 
 ### Planned
 
-- Register and Login use cases
+- Login use case
 - JWT access tokens
 - Refresh tokens
 - Docker
@@ -33,7 +34,7 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 
 Kwestie is under active development.
 
-The current milestone covers the core domain model, the first application use case, SQL Server persistence, and base ASP.NET Core Identity infrastructure. `20260925192607_AddIdentity` was applied manually to the local `Kwestie` database, which now contains AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens. Authentication remains incomplete: Register, Login, JWT, and refresh tokens are not implemented.
+The current milestone covers the core domain model, application use cases, SQL Server persistence, and ASP.NET Core Identity registration. `20260925192607_AddIdentity` was applied manually to the local `Kwestie` database, which contains AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens. Register is implemented in Application and Infrastructure with real user-persistence coverage, but has no HTTP endpoint. Authentication remains incomplete: Login, JWT, and refresh tokens are not implemented.
 
 Implemented so far:
 
@@ -47,7 +48,7 @@ Implemented so far:
 
 Create Kwestie has an Infrastructure repository implementation using EF Core and SQL Server. `InitialCreate` exists and was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, generated Number, retrieval, and cleanup. There is still no Create Kwestie API endpoint; workspace and membership checks required before exposing this use case are not implemented.
 
-Full authentication is not implemented yet. Register, Login, JWT, refresh tokens, workspaces, assignment, comments, history, search, and dashboard functionality remain pending.
+Full authentication is not implemented yet. Login, JWT, refresh tokens, workspaces, assignment, comments, history, search, and dashboard functionality remain pending.
 
 ## Architecture
 
@@ -131,7 +132,7 @@ From the repository root:
 dotnet test
 ```
 
-The current Domain and Application tests do not require SQL Server, EF Core, or any external infrastructure. IntegrationTests retains database-free EF model/materialization checks and now also runs a real SQL Server repository test. Full `dotnet test` requires the existing local `Kwestie` database with `InitialCreate` applied and `ConnectionStrings:Kwestie` configured in the API's shared .NET User Secrets. The real test deletes its own row in `finally`; it does not create the database or apply migrations.
+The current Domain and Application tests do not require SQL Server, EF Core, or any external infrastructure. IntegrationTests retains database-free EF model/materialization checks and runs real SQL Server tests for Kwestie persistence and user registration, including hashing and duplicate-email rejection. Full `dotnet test` requires the existing local `Kwestie` database with `InitialCreate` and `AddIdentity` applied and `ConnectionStrings:Kwestie` configured in the API's shared .NET User Secrets. The real tests clean up their own data in `finally`; they do not create the database or apply migrations.
 
 API and IntegrationTests use the same `UserSecretsId`; do not store the connection string or passwords in the repository. The development SQL Server currently runs in Docker, independently of any application Docker configuration in this repository. `dotnet build` does not require SQL Server. See [Infrastructure configuration](docs/infrastructure.md#configuration).
 
