@@ -5,6 +5,8 @@ namespace Kwestie.Infrastructure.Identity;
 
 public sealed class UserRegistration(UserManager<ApplicationUser> userManager) : IUserRegistration
 {
+    private readonly UserManager<ApplicationUser> _userManager = userManager;
+
     public async Task<RegisterUserResult> RegisterAsync(
         string email, string password, CancellationToken cancellationToken = default)
     {
@@ -17,7 +19,7 @@ public sealed class UserRegistration(UserManager<ApplicationUser> userManager) :
         };
 
         // UserManager.CreateAsync has no CancellationToken overload.
-        var result = await userManager.CreateAsync(user, password);
+        var result = await _userManager.CreateAsync(user, password);
         return result.Succeeded
             ? RegisterUserResult.Success(user.Id)
             : RegisterUserResult.Rejected(result.Errors.Select(error => error.Description));

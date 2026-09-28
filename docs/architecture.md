@@ -241,6 +241,15 @@ The real tests require the existing local `Kwestie` database with `InitialCreate
 
 Domain and current Application tests run without database, API, or infrastructure dependencies.
 
+## C# Conventions
+
+These are project coding conventions, not Clean Architecture rules:
+
+- Simple services receiving dependencies through DI use primary constructors.
+- Dependencies used by instance methods are stored in private `readonly` fields; methods use those fields exclusively, not the primary constructor parameters.
+- Parameters used only for base-constructor chaining do not require a redundant field.
+- Classic constructors remain appropriate for invariants, normalization, multiple construction paths, or significant initialization logic.
+
 ## Working Agreement
 
 When implementing a feature:

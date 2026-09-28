@@ -5,9 +5,11 @@ namespace Kwestie.Infrastructure.Persistence.Repositories;
 
 public sealed class KwestieRepository(KwestieDbContext context) : IKwestieRepository
 {
+    private readonly KwestieDbContext _context = context;
+
     public async Task AddAsync(KwestieEntity kwestie, CancellationToken cancellationToken = default)
     {
-        context.Kwesties.Add(kwestie);
-        await context.SaveChangesAsync(cancellationToken);
+        _context.Kwesties.Add(kwestie);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 }
