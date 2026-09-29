@@ -7,7 +7,7 @@ public sealed class UserAuthentication(UserManager<ApplicationUser> userManager)
 {
     private readonly UserManager<ApplicationUser> _userManager = userManager;
 
-    public async Task<LoginUserResult> AuthenticateAsync(
+    public async Task<UserAuthenticationResult> AuthenticateAsync(
         string email, string password, CancellationToken cancellationToken = default)
     {
         // These UserManager operations do not accept a CancellationToken.
@@ -16,8 +16,8 @@ public sealed class UserAuthentication(UserManager<ApplicationUser> userManager)
         cancellationToken.ThrowIfCancellationRequested();
 
         if (user is null || !await _userManager.CheckPasswordAsync(user, password))
-            return LoginUserResult.InvalidCredentials();
+            return UserAuthenticationResult.InvalidCredentials();
 
-        return LoginUserResult.Success(user.Id);
+        return UserAuthenticationResult.Success(user.Id);
     }
 }

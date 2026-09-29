@@ -2,6 +2,6 @@ namespace Kwestie.Application.Authentication.Login;
 
 public interface IUserAuthentication
 {
-    Task<LoginUserResult> AuthenticateAsync(
+    Task<UserAuthenticationResult> AuthenticateAsync(
         string email, string password, CancellationToken cancellationToken = default);
 }

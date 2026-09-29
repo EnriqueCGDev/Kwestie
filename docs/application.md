@@ -14,12 +14,16 @@ Authentication/
 │   ├── IUserAuthentication.cs
 │   ├── LoginUserCommand.cs
 │   ├── LoginUserHandler.cs
-│   └── LoginUserResult.cs
-└── Register/
-    ├── IUserRegistration.cs
-    ├── RegisterUserCommand.cs
-    ├── RegisterUserHandler.cs
-    └── RegisterUserResult.cs
+│   ├── LoginUserResult.cs
+│   └── UserAuthenticationResult.cs
+├── Register/
+│   ├── IUserRegistration.cs
+│   ├── RegisterUserCommand.cs
+│   ├── RegisterUserHandler.cs
+│   └── RegisterUserResult.cs
+└── Tokens/
+    ├── IAccessTokenGenerator.cs
+    └── AccessTokenResult.cs
 Kwesties/
 ├── IKwestieRepository.cs
 └── Create/
@@ -67,15 +71,21 @@ The handler uses .NET `TimeProvider` rather than reading the real clock directly
 
 The current account convention is UserName = Email. Infrastructure implements registration through Identity. `RegisterUserResult` reports `Succeeded`, a nullable Guid `UserId`, and a read-only collection of error strings. Success includes the user ID and no errors; rejection includes error descriptions and no user ID. Infrastructure exceptions are not converted into validation failures.
 
-Cancellation is forwarded to Infrastructure, which checks it before invoking Identity. UserManager.CreateAsync has no CancellationToken overload, so cancellation cannot interrupt that operation through this API. Register does not emit tokens and has no HTTP endpoint or handler DI registration. JWT and refresh tokens remain pending.
+Cancellation is forwarded to Infrastructure, which checks it before invoking Identity. UserManager.CreateAsync has no CancellationToken overload, so cancellation cannot interrupt that operation through this API. Register does not emit tokens and has no HTTP endpoint or handler DI registration. Refresh tokens remain pending.
 
 ## Login
 
-`LoginUserCommand` contains only Email and Password. `LoginUserHandler` delegates both values and the CancellationToken to `IUserAuthentication.AuthenticateAsync`, using a primary constructor and a private readonly dependency field. Application remains independent of Identity and Infrastructure types.
+`LoginUserCommand` contains only Email and Password. `LoginUserHandler` first delegates both values and the CancellationToken to `IUserAuthentication.AuthenticateAsync`. This contract returns `UserAuthenticationResult`, containing only credential-validation success and a nullable user ID. Infrastructure does not construct the final Login result.
 
-`LoginUserResult` exposes only `Succeeded` and nullable Guid `UserId`. Success requires a non-empty user ID. An unknown email and an incorrect password both return `Succeeded = false` and `UserId = null`, without error details that distinguish the cause. Invalid credentials are results, not exceptions; infrastructure failures still propagate. This is equivalence of returned data, not a constant-time execution guarantee.
+If credentials are valid, the handler calls `IAccessTokenGenerator.Generate` with exactly the authenticated user ID. It returns `LoginUserResult` with `Succeeded = true`, a non-empty Guid `UserId`, a nonblank `AccessToken`, and a non-default UTC `ExpiresAtUtc`. Both dependencies use primary-constructor parameters stored in private readonly fields. Application remains independent of Identity, JWT libraries, and Infrastructure types.
 
-Infrastructure checks cancellation before the lookup and before password validation; the UserManager operations do not accept the caller's CancellationToken. Login validates credentials only: it creates no session, cookies, or tokens, and has no HTTP endpoint or handler DI registration.
+An unknown email and an incorrect password both return `Succeeded = false`, with null UserId, AccessToken, and ExpiresAtUtc. The token generator is not called. Invalid credentials are results, not exceptions; infrastructure failures still propagate. This is equivalence of returned data, not a constant-time execution guarantee.
+
+Infrastructure checks cancellation before the lookup and before password validation; the UserManager operations do not accept the caller's CancellationToken. Login has no HTTP endpoint or handler DI registration and creates no cookie or refresh token.
+
+## Access Tokens
+
+`Authentication/Tokens/IAccessTokenGenerator` provides synchronous `AccessTokenResult Generate(Guid userId)`. Token creation is local computation; its Application-owned result contains only the token string and UTC expiration. The contract is independent of Login and can be reused by a future refresh-token flow. Infrastructure currently implements it with JWT; Application does not reference JWT token types, signing credentials, or validation libraries.
 
 ## Validation Boundaries
 
@@ -89,7 +99,7 @@ Implemented: `CreateKwestieCommand`, `CreateKwestieHandler`, `CreateKwestieResul
 
 Register is also implemented through RegisterUserCommand, RegisterUserHandler, RegisterUserResult, and IUserRegistration. Unit tests use a small fake to verify input/cancellation forwarding and success/error results; a separate Infrastructure integration test verifies real Identity user persistence.
 
-Login is implemented through LoginUserCommand, LoginUserHandler, LoginUserResult, and IUserAuthentication. Unit tests verify input/cancellation forwarding, successful and invalid-credential results, and rejection of an empty success ID. A real SQL Server test registers a user, authenticates through a fresh scope, verifies equivalent rejection results for an incorrect password and an unknown email, and cleans up the user in finally.
+Login unit tests use authentication and token-generator fakes to verify input/cancellation forwarding, generation for the exact authenticated ID, returned token/expiration, and no generation for rejected credentials. Result tests reject empty IDs, blank tokens, and invalid UTC expiration values. IntegrationTests retains the real credential-validation test and adds a real Login + JWT flow with cryptographic validation and user cleanup in finally. JWT-only tests need no SQL Server or developer signing secret.
 
 Tests use a local recording repository fake and a fixed time provider. They cover the created entity and result, generated ID, timestamps, unassigned number, cancellation-token forwarding, waiting for the repository, and domain rejection without a repository call.
 

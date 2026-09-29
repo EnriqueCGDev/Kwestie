@@ -9,6 +9,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
         "ConnectionStrings:Kwestie is required. Configure it with .NET User Secrets for local development.");
 }
 builder.Services.AddInfrastructure(connectionString);
+builder.Services.AddJwtAuthentication(builder.Configuration);
 
 // Add services to the container.
 
@@ -26,6 +27,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
