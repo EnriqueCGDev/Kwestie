@@ -191,9 +191,9 @@ JWT access token
 refresh token
 ```
 
-Identity is implemented with `AddIdentityCore<ApplicationUser>` and EF stores. Register is implemented in Application through IUserRegistration, with an Infrastructure adapter using UserManager. Application remains independent of Identity types. The adapter uses UserName = Email and Identity requires unique email while retaining default password policies. No authentication cookies, JWT, external providers, or endpoints are registered. Login and token issuance remain pending, so authentication is not complete.
+Identity is implemented with `AddIdentityCore<ApplicationUser>` and EF stores. Register and Login are implemented in Application through IUserRegistration and IUserAuthentication, with Infrastructure adapters using UserManager. Application remains independent of Identity types. Registration uses UserName = Email and Identity requires unique email while retaining default password policies. Login finds users by email and validates passwords through Identity, returning the same failure result for an unknown email and an incorrect password. No authentication cookies, JWT, external providers, or endpoints are registered. Token issuance remains pending, so authentication is not complete.
 
-The context uses `IdentityUserContext<ApplicationUser, Guid>` without global roles. Future Workspace Admin/Member roles are separate domain concepts, not global Identity roles. No roles are registered or seeded. `20260925192607_AddIdentity` was applied manually to the local `Kwestie` database; Register required no additional migration. Login, JWT, and refresh tokens remain unimplemented.
+The context uses `IdentityUserContext<ApplicationUser, Guid>` without global roles. Future Workspace Admin/Member roles are separate domain concepts, not global Identity roles. No roles are registered or seeded. `20260925192607_AddIdentity` was applied manually to the local `Kwestie` database; Register and Login required no additional migration. JWT and refresh tokens remain unimplemented.
 
 OAuth 2.0 / OpenID Connect may be introduced later if Kwestie needs external identity providers, enterprise SSO, or third-party clients.
 
@@ -229,13 +229,14 @@ The solution currently contains:
 
 At the current stage, meaningful automated coverage exists in all three test projects.
 
-Application tests cover Create Kwestie using a small repository fake and a controlled .NET `TimeProvider`, and Register using an `IUserRegistration` fake, without mocking libraries.
+Application tests cover Create Kwestie using a small repository fake and a controlled .NET `TimeProvider`, and Register and Login using small `IUserRegistration` and `IUserAuthentication` fakes, without mocking libraries.
 
 IntegrationTests contains:
 
 - EF model and materialization checks that do not require a database.
 - A real `KwestieRepository` round-trip test against SQL Server, including generated `Number` and retrieval through a separate DbContext.
 - A real user-registration test against SQL Server through the `IUserRegistration` implementation and Identity's `UserManager`. It verifies persistence in `AspNetUsers`, retrieval through a separate DbContext, normalized Email/UserName values, an Identity-generated `PasswordHash`, password validation through Identity's password hasher, and duplicate-email rejection.
+- A real Login test against SQL Server that registers a user, validates credentials through `IUserAuthentication` in a fresh scope, checks equivalent rejection results for an incorrect password and an unknown email, and verifies user cleanup in finally. It checks that EF has no pending model changes before writing.
 
 The real tests require the existing local `Kwestie` database with `InitialCreate` and `AddIdentity` already applied, and `ConnectionStrings:Kwestie` from the API's shared .NET User Secrets. They remove their created Kwestie or user in `finally`, even if an assertion fails after insertion. They do not create the database or apply migrations automatically.
 

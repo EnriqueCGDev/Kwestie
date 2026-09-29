@@ -1,5 +1,6 @@
 using Kwestie.Application.Kwesties;
 using Kwestie.Application.Authentication.Register;
+using Kwestie.Application.Authentication.Login;
 using Kwestie.Infrastructure.Identity;
 using Kwestie.Infrastructure.Persistence;
 using Kwestie.Infrastructure.Persistence.Repositories;
@@ -18,6 +19,7 @@ public static class DependencyInjection
         services.AddIdentityCore<ApplicationUser>(options => options.User.RequireUniqueEmail = true)
             .AddEntityFrameworkStores<KwestieDbContext>();
         services.AddScoped<IUserRegistration, UserRegistration>();
+        services.AddScoped<IUserAuthentication, UserAuthentication>();
         return services;
     }
 }

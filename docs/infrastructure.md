@@ -16,7 +16,7 @@ ASP.NET Core Identity is integrated exclusively in Infrastructure. `Identity/App
 
 `AddInfrastructure` registers Identity Core with EF stores and sets `options.User.RequireUniqueEmail = true`. Default password policies remain unchanged. There are no global role services or role tables in this model; future Workspace Admin/Member roles are unrelated to global Identity roles.
 
-AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens are mapped in the model and now exist physically in the local SQL Server `Kwestie` database after the manual application of `AddIdentity`. These tables do not imply implemented external-login or application refresh-token features. No authentication cookies, external providers, default token providers, or endpoints are registered. Login, JWT, refresh tokens, email confirmation, and password recovery remain unimplemented.
+AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens are mapped in the model and now exist physically in the local SQL Server `Kwestie` database after the manual application of `AddIdentity`. These tables do not imply implemented external-login or application refresh-token features. No authentication cookies, external providers, default token providers, or endpoints are registered. JWT, refresh tokens, email confirmation, and password recovery remain unimplemented.
 
 ### User registration
 
@@ -27,6 +27,16 @@ The adapter is scoped in AddInfrastructure; Application handlers are not registe
 A real SQL Server test registers a unique email, reads the user through a separate context, checks normalized values and the stored hash, verifies the password through Identity's PasswordHasher, and confirms rejection of the same email. Its finally block removes only users with that test's unique email and verifies cleanup. No credentials or hashes are logged.
 
 Database-free tests verify Guid user keys, Identity user tables, the absence of roles and Kwestie-to-user foreign keys, and resolution of UserManager with an EF user store sharing the registered context.
+
+### User authentication
+
+`Identity/UserAuthentication` implements Application's `IUserAuthentication` and is registered as scoped in `AddInfrastructure`. It uses `UserManager<ApplicationUser>.FindByEmailAsync` and `CheckPasswordAsync`; it does not query users through DbContext, read or compare PasswordHash manually, or invoke PasswordHasher directly. Its primary constructor initializes a private readonly UserManager field.
+
+A valid password returns the user's Guid. An unknown email and an incorrect password return the same public result: `Succeeded = false`, `UserId = null`. The adapter exposes no reason-specific errors and logs no credentials. This does not guarantee identical execution timing. No JWT, refresh token, cookie, or session is created.
+
+Existing Identity policies remain unchanged. CheckPasswordAsync does not increment failed-access counts or enforce lockout; no additional lockout is implemented. Identity may upgrade an outdated password hash on successful verification. Cancellation is checked before the lookup and before password validation, since these UserManager methods have no CancellationToken parameter.
+
+A real SQL Server test creates a unique user through the existing Register adapter, validates correct credentials from a fresh scope, and verifies equivalent rejection results for a wrong password and a missing email. It deletes only its test user in finally and verifies removal. The test checks for pending EF model changes before any write. Login changes no database model and requires no new migration.
 
 ## Kwestie Persistence
 
@@ -66,4 +76,4 @@ EF Core Design is a private tooling dependency in Infrastructure and the API sta
 
 Implemented: SQL Server context and mapping, repository insertion with saving, dependency injection registration, shared API/test User Secrets configuration, InitialCreate and AddIdentity applied locally, a verified real SQL Server repository round-trip test, and the Identity infrastructure base with Guid users and EF stores. Model, materialization, and Identity registration tests are available without a database.
 
-Register is implemented through UserManager with real user-persistence coverage. Pending: Login, JWT and refresh tokens, workspace/membership checks, and HTTP endpoints for Register and Create Kwestie. Both use cases remain unexposed.
+Register and Login are implemented through UserManager with real SQL Server coverage. Pending: JWT and refresh tokens, workspace/membership checks, and HTTP endpoints for Register, Login, and Create Kwestie. All three use cases remain unexposed; authentication is not complete.

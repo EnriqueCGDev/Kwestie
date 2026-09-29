@@ -10,6 +10,11 @@ The implemented features are organized as follows:
 
 ```text
 Authentication/
+├── Login/
+│   ├── IUserAuthentication.cs
+│   ├── LoginUserCommand.cs
+│   ├── LoginUserHandler.cs
+│   └── LoginUserResult.cs
 └── Register/
     ├── IUserRegistration.cs
     ├── RegisterUserCommand.cs
@@ -62,7 +67,15 @@ The handler uses .NET `TimeProvider` rather than reading the real clock directly
 
 The current account convention is UserName = Email. Infrastructure implements registration through Identity. `RegisterUserResult` reports `Succeeded`, a nullable Guid `UserId`, and a read-only collection of error strings. Success includes the user ID and no errors; rejection includes error descriptions and no user ID. Infrastructure exceptions are not converted into validation failures.
 
-Cancellation is forwarded to Infrastructure, which checks it before invoking Identity. UserManager.CreateAsync has no CancellationToken overload, so cancellation cannot interrupt that operation through this API. Register does not emit tokens and has no HTTP endpoint or handler DI registration. Login, JWT, and refresh tokens remain pending.
+Cancellation is forwarded to Infrastructure, which checks it before invoking Identity. UserManager.CreateAsync has no CancellationToken overload, so cancellation cannot interrupt that operation through this API. Register does not emit tokens and has no HTTP endpoint or handler DI registration. JWT and refresh tokens remain pending.
+
+## Login
+
+`LoginUserCommand` contains only Email and Password. `LoginUserHandler` delegates both values and the CancellationToken to `IUserAuthentication.AuthenticateAsync`, using a primary constructor and a private readonly dependency field. Application remains independent of Identity and Infrastructure types.
+
+`LoginUserResult` exposes only `Succeeded` and nullable Guid `UserId`. Success requires a non-empty user ID. An unknown email and an incorrect password both return `Succeeded = false` and `UserId = null`, without error details that distinguish the cause. Invalid credentials are results, not exceptions; infrastructure failures still propagate. This is equivalence of returned data, not a constant-time execution guarantee.
+
+Infrastructure checks cancellation before the lookup and before password validation; the UserManager operations do not accept the caller's CancellationToken. Login validates credentials only: it creates no session, cookies, or tokens, and has no HTTP endpoint or handler DI registration.
 
 ## Validation Boundaries
 
@@ -75,6 +88,8 @@ Checks requiring other data or coordination belong to Application orchestration.
 Implemented: `CreateKwestieCommand`, `CreateKwestieHandler`, `CreateKwestieResult`, `IKwestieRepository`, and feature tests in `Kwestie.Application.Tests/Kwesties/Create`.
 
 Register is also implemented through RegisterUserCommand, RegisterUserHandler, RegisterUserResult, and IUserRegistration. Unit tests use a small fake to verify input/cancellation forwarding and success/error results; a separate Infrastructure integration test verifies real Identity user persistence.
+
+Login is implemented through LoginUserCommand, LoginUserHandler, LoginUserResult, and IUserAuthentication. Unit tests verify input/cancellation forwarding, successful and invalid-credential results, and rejection of an empty success ID. A real SQL Server test registers a user, authenticates through a fresh scope, verifies equivalent rejection results for an incorrect password and an unknown email, and cleans up the user in finally.
 
 Tests use a local recording repository fake and a fixed time provider. They cover the created entity and result, generated ID, timestamps, unassigned number, cancellation-token forwarding, waiting for the repository, and domain rejection without a repository call.
 
