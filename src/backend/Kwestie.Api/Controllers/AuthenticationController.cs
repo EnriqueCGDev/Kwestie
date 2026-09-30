@@ -1,5 +1,6 @@
 using Kwestie.Api.Contracts.Authentication;
 using Kwestie.Application.Authentication.Login;
+using Kwestie.Application.Authentication.Logout;
 using Kwestie.Application.Authentication.Refresh;
 using Kwestie.Application.Authentication.Register;
 using Microsoft.AspNetCore.Authorization;
@@ -13,12 +14,14 @@ namespace Kwestie.Api.Controllers;
 public sealed class AuthenticationController(
     RegisterUserHandler registration,
     LoginUserHandler login,
-    RefreshSessionHandler refresh) : ControllerBase
+    RefreshSessionHandler refresh,
+    LogoutSessionHandler logout) : ControllerBase
 {
     private const string RefreshCookieName = "kwestie_refresh_token";
     private readonly RegisterUserHandler _registration = registration;
     private readonly LoginUserHandler _login = login;
     private readonly RefreshSessionHandler _refresh = refresh;
+    private readonly LogoutSessionHandler _logout = logout;
 
     [HttpPost("register")]
     [ProducesResponseType<RegisterResponse>(StatusCodes.Status201Created)]
@@ -66,6 +69,15 @@ public sealed class AuthenticationController(
             result.AccessTokenExpiresAtUtc!.Value, result.RefreshTokenExpiresAtUtc.Value));
     }
 
+    [HttpPost("logout")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
+    {
+        await _logout.HandleAsync(new LogoutSessionCommand(Request.Cookies[RefreshCookieName]), cancellationToken);
+        Response.Cookies.Delete(RefreshCookieName, RefreshCookieOptions());
+        return NoContent();
+    }
+
     private void WriteRefreshCookie(string token, DateTimeOffset expiresAtUtc)
     {
         var options = RefreshCookieOptions();
@@ -84,6 +96,6 @@ public sealed class AuthenticationController(
         HttpOnly = true,
         Secure = true,
         SameSite = SameSiteMode.Strict,
-        Path = "/api/auth/refresh"
+        Path = "/api/auth"
     };
 }

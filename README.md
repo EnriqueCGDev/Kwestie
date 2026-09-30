@@ -24,12 +24,11 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 - Login endpoint with real SQL Server credential-validation coverage
 - JWT access-token issuance from Login and API Bearer validation, with JWT and real Login + JWT tests
 - Refresh-token issuance and rotation validated against SQL Server, with AddRefreshTokens applied locally
-- Refresh endpoint and secure refresh-token cookie handling
+- Refresh and idempotent Logout endpoints with secure refresh-token cookie handling
 - HTTP integration coverage using the real API and SQL Server
 
 ### Planned
 
-- Logout
 - Angular authentication integration
 - CORS/frontend configuration according to deployment
 - Docker
@@ -39,7 +38,7 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 
 Kwestie is under active development.
 
-InitialCreate, AddIdentity, and 20260929220522_AddRefreshTokens are applied to the local Kwestie database. Login returns access and refresh tokens with separate UTC expirations, and Refresh rotates the persisted token. The complete Login + Refresh + JWT flow has been validated against SQL Server, including issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. API exposes Register, Login, and Refresh endpoints. Access tokens are returned as JSON for Bearer use; refresh tokens are sent only in a secure HttpOnly cookie. Logout, Angular authentication integration, and CORS remain unimplemented. Authentication is not complete.
+InitialCreate, AddIdentity, and 20260929220522_AddRefreshTokens are applied to the local Kwestie database. Login returns access and refresh tokens with separate UTC expirations, and Refresh rotates the persisted token. The complete Login + Refresh + JWT flow has been validated against SQL Server, including issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. API exposes Register, Login, Refresh, and Logout endpoints. Access tokens are returned as JSON for Bearer use; refresh tokens are sent only in a secure HttpOnly cookie. Angular authentication integration and CORS remain unimplemented. Authentication is not complete.
 
 Implemented so far:
 
@@ -53,7 +52,7 @@ Implemented so far:
 
 Create Kwestie has an Infrastructure repository implementation using EF Core and SQL Server. `InitialCreate` exists and was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, generated Number, retrieval, and cleanup. There is still no Create Kwestie API endpoint; workspace and membership checks required before exposing this use case are not implemented.
 
-Full authentication is not implemented yet. Logout, Angular authentication integration, workspaces, assignment, comments, history, search, and dashboard functionality remain pending.
+Full authentication is not implemented yet. Angular authentication integration, workspaces, assignment, comments, history, search, and dashboard functionality remain pending.
 
 ## Architecture
 
@@ -139,7 +138,7 @@ dotnet build
 dotnet test
 ```
 
-Domain and Application tests require no SQL Server or Infrastructure. IntegrationTests includes database-free EF, JWT, and refresh mapping/configuration checks, alongside real SQL tests. Full dotnet test requires InitialCreate, AddIdentity, and AddRefreshTokens applied to the local Kwestie database and ConnectionStrings:Kwestie in shared API User Secrets. All three migrations are applied locally. The full suite passed on 2026-09-30: 99 tests, 99 passed, 0 failed, 0 skipped, including the real refresh-token SQL tests and six HTTP integration tests. Tests never create the database or apply migrations; they clean up only their own data in finally.
+Domain and Application tests require no SQL Server or Infrastructure. IntegrationTests includes database-free EF, JWT, and refresh mapping/configuration checks, alongside real SQL tests. Full dotnet test requires InitialCreate, AddIdentity, and AddRefreshTokens applied to the local Kwestie database and ConnectionStrings:Kwestie in shared API User Secrets. All three migrations are applied locally. The full suite passed on 2026-09-30: 106 tests, 106 passed, 0 failed, 0 skipped, including the real refresh-token SQL tests and eleven HTTP integration tests. Tests never create the database or apply migrations; they clean up only their own data in finally.
 
 API and IntegrationTests use the same `UserSecretsId`; do not store the connection string or passwords in the repository. The development SQL Server currently runs in Docker, independently of any application Docker configuration in this repository. `dotnet build` does not require SQL Server. See [Infrastructure configuration](docs/infrastructure.md#configuration).
 

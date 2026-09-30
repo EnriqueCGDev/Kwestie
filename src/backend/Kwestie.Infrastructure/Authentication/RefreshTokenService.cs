@@ -65,6 +65,20 @@ public sealed class RefreshTokenService(
         return RefreshTokenRotationResult.Success(current.UserId, raw, replacement.ExpiresAtUtc);
     }
 
+    public async Task RevokeAsync(string? refreshToken, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsWellFormed(refreshToken))
+            return;
+
+        var hash = Hash(refreshToken!);
+        var now = _timeProvider.GetUtcNow();
+        // One conditional update makes repeated/concurrent revocations harmless and changes rowversion.
+        await _context.RefreshTokens
+            .Where(token => token.TokenHash == hash && token.RevokedAtUtc == null && token.ExpiresAtUtc > now)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(token => token.RevokedAtUtc, now), cancellationToken);
+    }
+
     private (string Raw, RefreshToken Stored) CreateToken(Guid userId, DateTimeOffset now)
     {
         var raw = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));

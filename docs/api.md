@@ -43,7 +43,7 @@ Success: **200 OK**:
 }
 ```
 
-The raw refresh token is delivered only through the `kwestie_refresh_token` cookie, never JSON. Its options are HttpOnly, Secure, SameSite=Strict, Path=/api/auth/refresh, Expires=RefreshTokenExpiresAtUtc, with no Domain. HTTPS is required for browser delivery of the secure cookie.
+The raw refresh token is delivered only through the `kwestie_refresh_token` cookie, never JSON. Its options are HttpOnly, Secure, SameSite=Strict, Path=/api/auth, Expires=RefreshTokenExpiresAtUtc, with no Domain. HTTPS is required for browser delivery of the secure cookie.
 
 Unknown email and incorrect password return the same **401 Unauthorized** behavior without issuing a cookie.
 
@@ -53,4 +53,10 @@ No body. Reads the refresh cookie and rotates it through the existing use case. 
 
 Missing, invalid, expired, revoked, reused, or concurrently consumed tokens return a generic **401 Unauthorized**, without an access token. The cookie is deleted using the same name and Path; the failure does not disclose its cause.
 
-Logout, Angular authentication integration, and CORS are not implemented. The intended browser integration keeps the access token in memory and lets the browser send the HttpOnly refresh cookie; JavaScript does not read or store it. Cross-site deployment would require a separate CORS/CSRF decision rather than changing SameSite preemptively.
+## POST /api/auth/logout
+
+No body. Uses the refresh cookie, revokes only the supplied active refresh token, and deletes the cookie with Path=/api/auth. Always returns **204 No Content** with no tokens or body for valid, missing, malformed, unknown, expired, or already revoked tokens. Repeated calls are idempotent. An access token is not required, and an expired Bearer token does not prevent logout. Already issued access JWTs remain valid until expiration; other sessions are unaffected. Infrastructure failures still propagate rather than claiming successful revocation.
+
+The cookie Path is now /api/auth for issuance, rotation, and deletion, allowing browser delivery to both Refresh and Logout. Cookies from the previous /api/auth/refresh scope must be cleared when updating an existing local browser session.
+
+Angular authentication integration and CORS are not implemented. The intended browser integration keeps the access token in memory and lets the browser send the HttpOnly refresh cookie; JavaScript does not read or store it. Cross-site deployment would require a separate CORS/CSRF decision rather than changing SameSite preemptively.

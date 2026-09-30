@@ -3,6 +3,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Kwestie.Api.Contracts.Authentication;
 using Kwestie.Infrastructure.Persistence;
+using Kwestie.Infrastructure.Authentication;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -139,6 +141,110 @@ public sealed class AuthenticationHttpTests(AuthenticationApiFactory factory)
         }
     }
 
+    [Fact]
+    public async Task Logout_WithExpiredAccessToken_RevokesRefresh_AndIsIdempotent()
+    {
+        // Automatic cookie handling proves the browser path covers both Refresh and Logout.
+        using var client = _factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"), HandleCookies = true, AllowAutoRedirect = false
+        });
+        var email = UniqueEmail();
+        try
+        {
+            var userId = await RegisterAsync(client, email);
+            using var login = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, Password));
+            await AssertSessionAsync(login, userId);
+            using var refreshed = await client.PostAsync("/api/auth/refresh", null);
+            var (_, token) = await AssertSessionAsync(refreshed, userId);
+
+            var expired = new JwtAccessTokenGenerator(_factory.Services.GetRequiredService<IOptions<JwtOptions>>(),
+                new PastTimeProvider()).Generate(userId);
+            Assert.True(expired.ExpiresAtUtc < DateTimeOffset.UtcNow);
+            client.DefaultRequestHeaders.Authorization = new("Bearer", expired.AccessToken);
+            using var logout = await client.PostAsync("/api/auth/logout", null);
+            await AssertLoggedOutAsync(logout);
+
+            DateTimeOffset? revokedAt;
+            await using (var scope = _factory.Services.CreateAsyncScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<KwestieDbContext>();
+                var tokens = await context.RefreshTokens.AsNoTracking().Where(row => row.UserId == userId).ToListAsync();
+                Assert.Equal(2, tokens.Count);
+                Assert.All(tokens, row => Assert.NotNull(row.RevokedAtUtc));
+                revokedAt = tokens.Max(row => row.RevokedAtUtc);
+            }
+
+            using var replay = _factory.CreateHttpsClient();
+            using var refreshRejected = await RefreshAsync(replay, token);
+            await AssertUnauthorizedAsync(refreshRejected, deleteCookie: true);
+            using var repeated = await LogoutAsync(replay, token);
+            await AssertLoggedOutAsync(repeated);
+            await using var readScope = _factory.Services.CreateAsyncScope();
+            Assert.Equal(revokedAt, await readScope.ServiceProvider.GetRequiredService<KwestieDbContext>()
+                .RefreshTokens.Where(row => row.UserId == userId).MaxAsync(row => row.RevokedAtUtc));
+        }
+        finally { await CleanupAsync(email); }
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("malformed-token")]
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")]
+    public async Task Logout_MissingMalformedOrUnknownToken_ReturnsSameNoContent(string? token)
+    {
+        using var client = _factory.CreateHttpsClient();
+        using var response = await LogoutAsync(client, token);
+        await AssertLoggedOutAsync(response);
+    }
+
+    [Fact]
+    public async Task Logout_ExpiredRefresh_ReturnsNoContent_WithoutChangingOtherSession()
+    {
+        using var client = _factory.CreateHttpsClient();
+        var email = UniqueEmail();
+        try
+        {
+            var userId = await RegisterAsync(client, email);
+            using var first = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, Password));
+            var (_, expired) = await AssertSessionAsync(first, userId);
+            await using (var scope = _factory.Services.CreateAsyncScope())
+                await scope.ServiceProvider.GetRequiredService<KwestieDbContext>().RefreshTokens
+                    .Where(row => row.UserId == userId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.ExpiresAtUtc, DateTimeOffset.UtcNow.AddDays(-1)));
+            using var second = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, Password));
+            var (_, active) = await AssertSessionAsync(second, userId);
+            using var logout = await LogoutAsync(client, expired);
+            await AssertLoggedOutAsync(logout);
+            using var renewed = await RefreshAsync(client, active);
+            await AssertSessionAsync(renewed, userId);
+        }
+        finally { await CleanupAsync(email); }
+    }
+
+    private static async Task<HttpResponseMessage> LogoutAsync(HttpClient client, string? token)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/logout");
+        if (token is not null)
+            request.Headers.Add(HeaderNames.Cookie, $"{CookieName}={token}");
+        return await client.SendAsync(request);
+    }
+
+    private static async Task AssertLoggedOutAsync(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Empty(await response.Content.ReadAsByteArrayAsync());
+        var cookie = ReadCookie(response);
+        AssertCookieOptions(cookie);
+        Assert.True(string.IsNullOrEmpty(cookie.Value.Value));
+        Assert.True(cookie.Expires < DateTimeOffset.UtcNow);
+    }
+
+    private sealed class PastTimeProvider : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => DateTimeOffset.UtcNow.AddDays(-1);
+    }
+
     private static string UniqueEmail() => $"HttpAuth-{Guid.NewGuid():N}@example.com";
 
     private static async Task<Guid> RegisterAsync(HttpClient client, string email)
@@ -221,7 +327,7 @@ public sealed class AuthenticationHttpTests(AuthenticationApiFactory factory)
         Assert.True(cookie.HttpOnly);
         Assert.True(cookie.Secure);
         Assert.Equal(Microsoft.Net.Http.Headers.SameSiteMode.Strict, cookie.SameSite);
-        Assert.Equal("/api/auth/refresh", cookie.Path.Value);
+        Assert.Equal("/api/auth", cookie.Path.Value);
         Assert.False(cookie.Domain.HasValue);
     }
 

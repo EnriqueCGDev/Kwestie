@@ -88,6 +88,9 @@ public class LoginUserHandlerTests
 
     private sealed class RefreshTokensFake : IRefreshTokenService
     {
+        public Task RevokeAsync(string? token, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public int Calls { get; private set; }
         public Guid? UserId { get; private set; }
         public CancellationToken Token { get; private set; }

@@ -81,6 +81,9 @@ public class RefreshSessionHandlerTests
 
     private sealed class RefreshFake(RefreshTokenRotationResult result) : IRefreshTokenService
     {
+        public Task RevokeAsync(string? token, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         private readonly RefreshTokenRotationResult _result = result;
         public string? ReceivedToken { get; private set; }
         public CancellationToken Cancellation { get; private set; }

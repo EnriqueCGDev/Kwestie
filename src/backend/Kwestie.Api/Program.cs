@@ -2,6 +2,7 @@ using Kwestie.Infrastructure;
 using Kwestie.Application.Authentication.Register;
 using Kwestie.Application.Authentication.Login;
 using Kwestie.Application.Authentication.Refresh;
+using Kwestie.Application.Authentication.Logout;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +18,7 @@ builder.Services.AddRefreshTokens(builder.Configuration);
 builder.Services.AddScoped<RegisterUserHandler>();
 builder.Services.AddScoped<LoginUserHandler>();
 builder.Services.AddScoped<RefreshSessionHandler>();
+builder.Services.AddScoped<LogoutSessionHandler>();
 
 // Add services to the container.
 
