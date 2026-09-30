@@ -197,9 +197,9 @@ Identity is implemented with AddIdentityCore<ApplicationUser> and EF stores. Reg
 
 Infrastructure issues HS256 JWT access tokens and configures Bearer validation through AddJwtAuthentication. API explicitly invokes that registration, using shared settings for signature, issuer, audience, and lifetime validation, and calls UseAuthentication before UseAuthorization. The sub claim is preserved without inbound mapping. AddRefreshTokens is a separate registration with a configurable lifetime. Application references no Identity, JWT, cryptography, EF, or Infrastructure types.
 
-RefreshSessionHandler rotates the supplied token through IRefreshTokenService and generates a new access token for the user recovered from persistence, never a user ID supplied by the caller. Infrastructure stores only SHA-256 hashes of random refresh tokens, uses rowversion to prevent concurrent reuse, and saves revocation plus replacement atomically. Domain is unchanged. Missing, malformed, expired, revoked, and concurrently consumed tokens have the same public failure result. No authentication endpoints, cookies, logout, or external providers are implemented.
+RefreshSessionHandler rotates the supplied token through IRefreshTokenService and generates a new access token for the user recovered from persistence, never a user ID supplied by the caller. Infrastructure stores only SHA-256 hashes of random refresh tokens, uses rowversion to prevent concurrent reuse, and saves revocation plus replacement atomically. Domain is unchanged. Missing, malformed, expired, revoked, and concurrently consumed tokens have the same public failure result. API exposes POST /api/auth/register, POST /api/auth/login, and POST /api/auth/refresh. Logout and external providers remain unimplemented.
 
-The context uses IdentityUserContext<ApplicationUser, Guid> without global roles. Future Workspace Admin/Member roles are separate domain concepts, not global Identity roles. No roles are registered or seeded. AddIdentity was applied manually locally. 20260929220522_AddRefreshTokens is also applied locally, and the complete Login + Refresh + JWT flow has passed real SQL tests. Authentication HTTP endpoints, logout, and Angular authentication integration are still absent, so authentication is not complete.
+The context uses IdentityUserContext<ApplicationUser, Guid> without global roles. Future Workspace Admin/Member roles are separate domain concepts, not global Identity roles. No roles are registered or seeded. AddIdentity was applied manually locally. 20260929220522_AddRefreshTokens is also applied locally, and the complete Login + Refresh + JWT flow has passed real SQL tests. Logout and Angular authentication integration are still absent, so authentication is not complete. CORS is not configured.
 
 OAuth 2.0 / OpenID Connect may be introduced later if Kwestie needs external identity providers, enterprise SSO, or third-party clients.
 
@@ -225,7 +225,7 @@ Kwestie will use pragmatic REST.
 
 Normal resource operations may use standard REST endpoints, while explicit domain actions may use action-oriented endpoints when that better represents the use case.
 
-Any endpoint examples in documentation are illustrative until the corresponding application use case is implemented.
+AuthenticationController adapts HTTP requests to Application commands and maps results to API-owned DTOs. Register, Login, and Refresh handlers are registered as scoped services in Program.cs. The controller owns refresh-cookie handling; Application and Infrastructure have no cookie responsibilities. Access tokens are returned as JSON for Bearer use. Raw refresh tokens appear only in an HttpOnly, Secure, SameSite=Strict cookie scoped to /api/auth/refresh, with no Domain and the returned refresh expiration. Failed refresh deletes that cookie and returns a generic 401. See [API](api.md) for the implemented contracts.
 
 ## Testing
 
@@ -241,6 +241,7 @@ Application tests cover Create Kwestie using a small repository fake and a contr
 
 IntegrationTests contains:
 
+- HTTP pipeline tests through WebApplicationFactory with real DI and SQL Server: registration, duplicate rejection, invalid login, JWT responses, secure refresh cookies, successive rotation, and reuse rejection. HTTPS clients keep Secure enabled; test JWT configuration is public and separate from developer secrets.
 - EF model and materialization checks that do not require a database.
 - A real `KwestieRepository` round-trip test against SQL Server, including generated `Number` and retrieval through a separate DbContext.
 - A real user-registration test against SQL Server through the `IUserRegistration` implementation and Identity's `UserManager`. It verifies persistence in `AspNetUsers`, retrieval through a separate DbContext, normalized Email/UserName values, an Identity-generated `PasswordHash`, password validation through Identity's password hasher, and duplicate-email rejection.
@@ -249,7 +250,7 @@ IntegrationTests contains:
 - Database-free refresh tests for mapping, FK/cascade, unique hash index, rowversion, absence of raw storage, DI, options, and malformed input rejection.
 - Passing SQL refresh tests for issuance, hash-only persistence, rotation, reuse rejection, expiration, concurrent consumption, and the complete Login + Refresh + JWT flow, with user/token cleanup in finally.
 
-The full real test suite requires the local Kwestie database with InitialCreate, AddIdentity, and AddRefreshTokens applied, plus ConnectionStrings:Kwestie in shared API User Secrets. All three migrations are applied locally. Tests remove their own data in finally and never create the database or apply migrations. The full suite passed on 2026-09-30, including real SQL coverage: 93 tests, 93 passed, 0 failed, 0 skipped. Model/snapshot agreement is checked separately from database migration application.
+The full real test suite requires the local Kwestie database with InitialCreate, AddIdentity, and AddRefreshTokens applied, plus ConnectionStrings:Kwestie in shared API User Secrets. All three migrations are applied locally. Tests remove their own data in finally and never create the database or apply migrations. The full suite passed on 2026-09-30, including real HTTP and SQL coverage: 99 tests, 99 passed, 0 failed, 0 skipped. Model/snapshot agreement is checked separately from database migration application.
 
 Domain and current Application tests run without database, API, or infrastructure dependencies.
 

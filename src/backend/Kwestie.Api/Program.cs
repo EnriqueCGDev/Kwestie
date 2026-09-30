@@ -1,4 +1,7 @@
 using Kwestie.Infrastructure;
+using Kwestie.Application.Authentication.Register;
+using Kwestie.Application.Authentication.Login;
+using Kwestie.Application.Authentication.Refresh;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +14,9 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddRefreshTokens(builder.Configuration);
+builder.Services.AddScoped<RegisterUserHandler>();
+builder.Services.AddScoped<LoginUserHandler>();
+builder.Services.AddScoped<RefreshSessionHandler>();
 
 // Add services to the container.
 
@@ -34,3 +40,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program;
