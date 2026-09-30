@@ -16,7 +16,7 @@ ASP.NET Core Identity is integrated exclusively in Infrastructure. `Identity/App
 
 `AddInfrastructure` registers Identity Core with EF stores and sets `options.User.RequireUniqueEmail = true`. Default password policies remain unchanged. There are no global role services or role tables in this model; future Workspace Admin/Member roles are unrelated to global Identity roles.
 
-AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens are mapped in the model and now exist physically in the local SQL Server `Kwestie` database after the manual application of `AddIdentity`. These tables do not imply implemented external-login or application refresh-token features. No authentication cookies, external providers, default token providers, or new endpoints are registered. Refresh tokens, email confirmation, and password recovery remain unimplemented.
+AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens are mapped in the model and exist physically in the local SQL Server Kwestie database after the manual application of AddIdentity. AspNetUserTokens is not used for application refresh tokens; those use the new RefreshTokens model below. No authentication cookies, external providers, default token providers, or new endpoints are registered. Email confirmation and password recovery remain unimplemented.
 
 ### User registration
 
@@ -36,7 +36,7 @@ A valid password returns the user's Guid in Application's `UserAuthenticationRes
 
 Existing Identity policies remain unchanged. CheckPasswordAsync does not increment failed-access counts or enforce lockout; no additional lockout is implemented. Identity may upgrade an outdated password hash on successful verification. Cancellation is checked before the lookup and before password validation, since these UserManager methods have no CancellationToken parameter.
 
-A real SQL Server test creates a unique user through the existing Register adapter, validates correct credentials from a fresh scope, and verifies equivalent rejection results for a wrong password and a missing email. It deletes only its test user in finally and verifies removal. The test checks for pending EF model changes before any write. Login changes no database model and requires no new migration.
+A real SQL Server test creates a unique user through the existing Register adapter, validates correct credentials from a fresh scope, and verifies equivalent rejection results for a wrong password and a missing email. It deletes only its test user in finally and verifies removal. The test checks for pending EF model changes before any write. Credential validation alone changes no database model; refresh-token persistence uses the applied AddRefreshTokens migration.
 
 ## JWT Access Tokens
 
@@ -46,7 +46,21 @@ The generator uses TimeProvider and rounds UTC time to whole seconds so the retu
 
 API explicitly calls AddJwtAuthentication and runs UseAuthentication before UseAuthorization. Bearer validation uses the same JwtOptions as issuance and requires a signature with HS256, the configured issuer/audience, and a valid lifetime with zero clock skew. MapInboundClaims is false and NameClaimType is sub. Tokens are not saved in authentication properties and detailed authentication errors are not exposed. No new endpoints or Authorize attributes are added.
 
-Tests validate generation, the registered Bearer handler, claims, lifetime, altered signatures, wrong signing keys, wrong issuer/audience, expired/future tokens, and startup configuration failures. A separate SQL Server test exercises LoginUserHandler with real credential validation and token generation, then validates the token and cleans up its temporary user. JWT test configuration contains only explicitly labelled public test material; developer signing secrets are not used. Refresh tokens are not implemented.
+Tests validate generation, the registered Bearer handler, claims, lifetime, altered signatures, wrong signing keys, wrong issuer/audience, expired/future tokens, and startup configuration failures. The SQL Server Login test includes refresh issuance and rotation; this Login + Refresh + JWT flow has passed against local SQL Server with AddRefreshTokens applied. JWT test configuration contains only explicitly labelled public test material; developer signing secrets are not used.
+
+## Refresh Tokens
+
+RefreshToken is an Infrastructure persistence model, not a Domain entity. Fluent API maps RefreshTokens with Guid Id (PK), Guid UserId, TokenHash, CreatedAtUtc, ExpiresAtUtc, nullable RevokedAtUtc, and SQL Server RowVersion. TokenHash is required char(64), non-Unicode, fixed length, with a unique index. UserId is indexed and references AspNetUsers with cascade deletion. ApplicationUser has no refresh-token navigation. No raw-token property or column exists.
+
+RefreshTokenService implements Application's IRefreshTokenService. IssueAsync rejects Guid.Empty, obtains UTC time from TimeProvider, generates 32 CSPRNG bytes (256 bits) with RandomNumberGenerator, and encodes them as unpadded Base64Url. It hashes the public token's UTF-8 bytes with SHA-256 and stores the uppercase hexadecimal hash. SaveChangesAsync persists only the hash and metadata; the public token is returned once to the caller, never loaded from SQL or logged.
+
+RotateAsync accepts only the canonical 43-character Base64Url representation of 32 bytes, hashes it, and looks up the hash. Missing, malformed, revoked, or expired tokens produce the same invalid result. Expiration is inclusive: ExpiresAtUtc <= now is invalid. A valid rotation revokes the old row and creates a new token with a full configured lifetime. Both writes use one SaveChangesAsync and EF's transaction, so either both persist or neither does.
+
+RowVersion prevents two requests from consuming the same stored version. A concurrency exception for the consumed row is converted to an invalid result only when that row is now revoked or deleted. The rolled-back replacement and old entry are detached, preventing a later save in the losing context from persisting an orphan replacement. Other failures propagate. No replacement chain, absolute session cap, background cleanup, or logout/manual revocation is implemented. Revoked rows remain stored until their user is deleted or future cleanup is introduced.
+
+Application's Refresh handler generates the access token after rotation commits. A later generation/transport failure cannot recover the consumed token; automatic retries and cross-contract rollback are not implemented in this version.
+
+Database-free tests cover mapping, uniqueness, FK/cascade, concurrency metadata, timestamps, absence of raw storage, DI, options, and malformed inputs. SQL tests have passed for issuance, hash-only persistence, successive rotations, reuse rejection, expiration at/after the boundary, unknown tokens, concurrent consumption, and Login + Refresh + JWT. The concurrency test synchronizes two contexts at SavingChanges after both read the original version, without sleeps, and checks that a later save cannot persist the loser's replacement. All SQL tests clean up only their temporary users and verify cascaded token removal. These SQL tests ran successfully against the local database with 20260929220522_AddRefreshTokens applied.
 
 ## Kwestie Persistence
 
@@ -84,18 +98,24 @@ dotnet user-secrets set "Jwt:Key" "<YOUR_PRIVATE_RANDOM_KEY_AT_LEAST_32_UTF8_BYT
 
 Do not put the actual key in source, documentation, logs, or committed configuration. Existing User Secrets are not changed by the implementation or tests. Builds and JWT tests need no real signing key; starting the API requires one.
 
+### Refresh-token configuration
+
+AddRefreshTokens(configuration) is separate from AddInfrastructure and AddJwtAuthentication. It binds RefreshTokenOptions, validates RefreshTokens:LifetimeDays > 0 at startup, registers IRefreshTokenService as scoped, and uses TryAddSingleton for TimeProvider.System to preserve a custom test clock. API invokes all three registrations. appsettings.json supplies a non-sensitive lifetime of 30 days. No refresh-token signing key exists, and JwtOptions is unchanged.
+
 ## Migrations
 
 Migrations belong to Infrastructure. `20260924234735_InitialCreate` exists and was applied locally before the real integration test was added. The local `Kwestie` database exists. Neither the test nor startup creates databases or applies migrations automatically; the test presupposes this local setup.
 
 `20260925192607_AddIdentity` exists and was applied manually to the local `Kwestie` database. It is recorded in `__EFMigrationsHistory` and created AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens in the same database used by `KwestieDbContext`.
 
-The KwestieRepository round-trip test accesses Kwesties. Identity model and service-registration tests remain database-free; Register, credential-validation, and Login + JWT integration tests exercise AspNetUsers on SQL Server. They verify that EF reports no pending model changes before writing. Register, Login, JWT, and RequireUniqueEmail do not change the schema. No new migration was required.
+`20260929220522_AddRefreshTokens` is applied to the local Kwestie database. It adds only RefreshTokens, its columns, primary key, cascading user FK, unique TokenHash index, UserId index, and rowversion. The snapshot includes that model; existing Kwesties and Identity schema and older migrations are unchanged. The local database update check confirmed that the database was already up to date, with no pending migrations. Login with refresh issuance and Refresh have passed their real SQL integration tests.
+
+Database-free checks verify that EF's model matches the snapshot. HasPendingModelChanges = false describes model/snapshot agreement, not migration application to SQL Server. SQL tests requiring RefreshTokens have passed. The full suite passed on 2026-09-30: 93 tests, 93 passed, 0 failed, 0 skipped. No test creates a database or applies migrations automatically.
 
 EF Core Design is a private tooling dependency in Infrastructure and the API startup project, supporting the Infrastructure target/API startup workflow. Future migration generation and application remain manual steps after model review and local User Secrets configuration.
 
 ## Current Implementation Scope
 
-Implemented: SQL Server context and mapping, repository insertion with saving, dependency injection registration, shared API/test User Secrets configuration, InitialCreate and AddIdentity applied locally, a verified real SQL Server repository round-trip test, and the Identity infrastructure base with Guid users and EF stores. Model, materialization, and Identity registration tests are available without a database.
+Implemented: SQL Server context and mapping, repository insertion with saving, dependency injection registration, shared API/test User Secrets configuration, InitialCreate, AddIdentity, and AddRefreshTokens applied locally, a verified real SQL Server repository round-trip test, and the Identity infrastructure base with Guid users and EF stores. Model, materialization, and Identity registration tests are available without a database.
 
-Register and credential validation are implemented through UserManager with real SQL Server coverage. Login now produces JWT access tokens, and API is configured for Bearer validation. Pending: refresh tokens, workspace/membership checks, and HTTP endpoints for Register, Login, and Create Kwestie. All three use cases remain unexposed; authentication is not complete.
+Register, credential validation, JWT, refresh issuance/rotation, Login's two-token result, and the Refresh use case have real SQL Server coverage. With AddRefreshTokens applied locally, the complete Login + Refresh + JWT flow has passed. API is configured for Bearer validation; workspace/membership checks, logout, authentication HTTP endpoints, and Angular authentication integration remain pending. Authentication is not complete.

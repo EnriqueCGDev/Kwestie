@@ -13,7 +13,8 @@ public class LoginUserHandlerTests
         var id = Guid.NewGuid();
         var fake = new AuthenticationFake(UserAuthenticationResult.Success(id));
         var tokens = new TokenGeneratorFake();
-        var handler = new LoginUserHandler(fake, tokens);
+        var refresh = new RefreshTokensFake();
+        var handler = new LoginUserHandler(fake, tokens, refresh);
         var command = new LoginUserCommand("test@example.com", "Test-only-Password1!");
         using var cancellation = new CancellationTokenSource();
 
@@ -28,7 +29,12 @@ public class LoginUserHandlerTests
         Assert.Equal(1, tokens.Calls);
         Assert.Equal(id, tokens.UserId);
         Assert.True(result.AccessToken == tokens.Result.AccessToken);
-        Assert.Equal(Expiration, result.ExpiresAtUtc);
+        Assert.Equal(Expiration, result.AccessTokenExpiresAtUtc);
+        Assert.Equal(1, refresh.Calls);
+        Assert.Equal(id, refresh.UserId);
+        Assert.Equal(cancellation.Token, refresh.Token);
+        Assert.True(result.RefreshToken == refresh.Result.RefreshToken);
+        Assert.Equal(refresh.Result.ExpiresAtUtc, result.RefreshTokenExpiresAtUtc);
     }
 
     [Fact]
@@ -36,14 +42,18 @@ public class LoginUserHandlerTests
     {
         var fake = new AuthenticationFake(UserAuthenticationResult.InvalidCredentials());
         var tokens = new TokenGeneratorFake();
-        var handler = new LoginUserHandler(fake, tokens);
+        var refresh = new RefreshTokensFake();
+        var handler = new LoginUserHandler(fake, tokens, refresh);
 
         var result = await handler.HandleAsync(new LoginUserCommand("test@example.com", "invalid"));
 
         Assert.False(result.Succeeded);
         Assert.Null(result.UserId);
         Assert.Null(result.AccessToken);
-        Assert.Null(result.ExpiresAtUtc);
+        Assert.Null(result.AccessTokenExpiresAtUtc);
+        Assert.Null(result.RefreshToken);
+        Assert.Null(result.RefreshTokenExpiresAtUtc);
+        Assert.Equal(0, refresh.Calls);
         Assert.Equal(0, tokens.Calls);
         Assert.Equal(1, fake.Calls);
     }
@@ -52,7 +62,7 @@ public class LoginUserHandlerTests
     public void Success_EmptyUserId_IsRejected()
     {
         Assert.Throws<ArgumentException>(() => UserAuthenticationResult.Success(Guid.Empty));
-        Assert.Throws<ArgumentException>(() => LoginUserResult.Success(Guid.Empty, "test-token", Expiration));
+        Assert.Throws<ArgumentException>(() => LoginUserResult.Success(Guid.Empty, "test-token", Expiration, "test-refresh", Expiration));
     }
 
     [Theory]
@@ -61,15 +71,38 @@ public class LoginUserHandlerTests
     [InlineData("   ")]
     public void Success_EmptyToken_IsRejected(string? token)
     {
-        Assert.ThrowsAny<ArgumentException>(() => LoginUserResult.Success(Guid.NewGuid(), token!, Expiration));
+        Assert.ThrowsAny<ArgumentException>(() => LoginUserResult.Success(Guid.NewGuid(), token!, Expiration, "test-refresh", Expiration));
+        Assert.ThrowsAny<ArgumentException>(() => LoginUserResult.Success(Guid.NewGuid(), "test-access", Expiration, token!, Expiration));
     }
 
     [Fact]
     public void Success_InvalidExpiration_IsRejected()
     {
-        Assert.Throws<ArgumentException>(() => LoginUserResult.Success(Guid.NewGuid(), "test-token", default));
+        Assert.Throws<ArgumentException>(() => LoginUserResult.Success(Guid.NewGuid(), "test-token", default, "test-refresh", Expiration));
         Assert.Throws<ArgumentException>(() => LoginUserResult.Success(
-            Guid.NewGuid(), "test-token", Expiration.ToOffset(TimeSpan.FromHours(1))));
+            Guid.NewGuid(), "test-token", Expiration.ToOffset(TimeSpan.FromHours(1)), "test-refresh", Expiration));
+        Assert.Throws<ArgumentException>(() => LoginUserResult.Success(Guid.NewGuid(), "test-token", Expiration, "test-refresh", default));
+        Assert.Throws<ArgumentException>(() => LoginUserResult.Success(
+            Guid.NewGuid(), "test-token", Expiration, "test-refresh", Expiration.ToOffset(TimeSpan.FromHours(1))));
+    }
+
+    private sealed class RefreshTokensFake : IRefreshTokenService
+    {
+        public int Calls { get; private set; }
+        public Guid? UserId { get; private set; }
+        public CancellationToken Token { get; private set; }
+        public RefreshTokenResult Result { get; } = new("test-refresh", Expiration.AddDays(30));
+
+        public Task<RefreshTokenResult> IssueAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            UserId = userId;
+            Token = cancellationToken;
+            return Task.FromResult(Result);
+        }
+
+        public Task<RefreshTokenRotationResult> RotateAsync(string? token, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class TokenGeneratorFake : IAccessTokenGenerator

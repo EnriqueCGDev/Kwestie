@@ -23,10 +23,11 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 - Register use case with real SQL Server user-persistence test (no HTTP endpoint)
 - Login use case with real SQL Server credential-validation test (no HTTP endpoint)
 - JWT access-token issuance from Login and API Bearer validation, with JWT and real Login + JWT tests
+- Refresh-token issuance and rotation validated against SQL Server, with AddRefreshTokens applied locally
 
 ### Planned
 
-- Refresh tokens
+- Authentication endpoints and logout
 - Docker
 - CI/CD
 
@@ -34,7 +35,7 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 
 Kwestie is under active development.
 
-The current milestone covers the core domain model, application use cases, SQL Server persistence, ASP.NET Core Identity registration and credential validation, and JWT access tokens. `20260925192607_AddIdentity` was applied manually to the local `Kwestie` database, which contains AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens. Register and Login are implemented in Application and Infrastructure with real SQL Server coverage, but have no HTTP endpoints. Login produces a signed access token and UTC expiration; API is configured to validate Bearer tokens. Authentication remains incomplete: refresh tokens and authentication endpoints are still pending.
+InitialCreate, AddIdentity, and 20260929220522_AddRefreshTokens are applied to the local Kwestie database. Login returns access and refresh tokens with separate UTC expirations, and Refresh rotates the persisted token. The complete Login + Refresh + JWT flow has been validated against SQL Server, including issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. API accepts Bearer tokens, but authentication HTTP endpoints, logout, and Angular authentication integration remain unimplemented. Authentication is not complete.
 
 Implemented so far:
 
@@ -48,7 +49,7 @@ Implemented so far:
 
 Create Kwestie has an Infrastructure repository implementation using EF Core and SQL Server. `InitialCreate` exists and was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, generated Number, retrieval, and cleanup. There is still no Create Kwestie API endpoint; workspace and membership checks required before exposing this use case are not implemented.
 
-Full authentication is not implemented yet. Refresh tokens, authentication endpoints, workspaces, assignment, comments, history, search, and dashboard functionality remain pending.
+Full authentication is not implemented yet. Authentication endpoints, logout, Angular authentication integration, workspaces, assignment, comments, history, search, and dashboard functionality remain pending.
 
 ## Architecture
 
@@ -126,19 +127,22 @@ Requirements:
 
 - .NET 10 SDK
 
-From the repository root:
+From the repository root, with the local database and User Secrets configured as described below:
 
 ```bash
+dotnet build
 dotnet test
 ```
 
-The current Domain and Application tests do not require SQL Server, EF Core, or any external infrastructure. IntegrationTests retains database-free EF model/materialization checks and runs real SQL Server tests for Kwestie persistence, user registration, and Login. Coverage includes hashing, duplicate-email rejection, successful Login, and equivalent rejection results for an incorrect password and an unknown email. Full `dotnet test` requires the existing local `Kwestie` database with `InitialCreate` and `AddIdentity` applied and `ConnectionStrings:Kwestie` configured in the API's shared .NET User Secrets. The real tests clean up their own data in `finally`; they do not create the database or apply migrations.
+Domain and Application tests require no SQL Server or Infrastructure. IntegrationTests includes database-free EF, JWT, and refresh mapping/configuration checks, alongside real SQL tests. Full dotnet test requires InitialCreate, AddIdentity, and AddRefreshTokens applied to the local Kwestie database and ConnectionStrings:Kwestie in shared API User Secrets. All three migrations are applied locally. The full suite passed on 2026-09-30: 93 tests, 93 passed, 0 failed, 0 skipped, including the real refresh-token SQL tests. Tests never create the database or apply migrations; they clean up only their own data in finally.
 
 API and IntegrationTests use the same `UserSecretsId`; do not store the connection string or passwords in the repository. The development SQL Server currently runs in Docker, independently of any application Docker configuration in this repository. `dotnet build` does not require SQL Server. See [Infrastructure configuration](docs/infrastructure.md#configuration).
 
-JWT tests use separate public test configuration and do not need the developer's signing key. They verify token generation, cryptographic and Bearer validation, rejected tokens, and invalid startup settings. A real Login + JWT integration test validates an access token for a temporary SQL Server user and cleans up in finally. No model or migration change is required.
+JWT tests use separate public test configuration and do not need the developer's signing key. They verify generation, cryptographic/Bearer validation, rejected tokens, and startup settings. SQL tests have passed for refresh issuance, hash-only persistence, rotation, reuse rejection, expiration, concurrent consumption, and Login + Refresh + JWT. The RefreshTokens table exists locally following application of 20260929220522_AddRefreshTokens.
 
 To start the API locally, also configure Jwt:Key through User Secrets; issuer, audience, and the default 15-minute lifetime are in appsettings.json. No signing key is stored in the repository. See the command and requirements in [JWT configuration](docs/infrastructure.md#jwt-configuration).
+
+RefreshTokens:LifetimeDays defaults to 30 in appsettings.json and is separate from JWT configuration. Refresh tokens use random bytes and persist only SHA-256 hashes; they have no signing key. AddRefreshTokens is applied locally and the complete flow has passed its SQL integration tests.
 
 ## Development Principles
 

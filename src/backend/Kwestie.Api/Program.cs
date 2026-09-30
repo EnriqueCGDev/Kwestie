@@ -10,6 +10,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddJwtAuthentication(builder.Configuration);
+builder.Services.AddRefreshTokens(builder.Configuration);
 
 // Add services to the container.
 

@@ -73,9 +73,10 @@ Infrastructure also contains `ApplicationUser : IdentityUser<Guid>` and register
 
 JWT access-token generation implements Application's IAccessTokenGenerator in Infrastructure. A separate AddJwtAuthentication registration supplies validated configuration, token generation, and Bearer validation for the API composition root.
 
+Refresh-token generation, hashing, and persistence also belong to Infrastructure, behind Application's IRefreshTokenService. The implementation is validated against SQL Server, and 20260929220522_AddRefreshTokens is applied locally.
+
 Planned responsibilities include:
 
-- Refresh-token persistence
 - External services
 
 Infrastructure depends on Application and Domain.
@@ -192,11 +193,13 @@ JWT access token
 refresh token
 ```
 
-Identity is implemented with `AddIdentityCore<ApplicationUser>` and EF stores. Register and Login use IUserRegistration and IUserAuthentication, with Infrastructure adapters using UserManager. Registration uses UserName = Email and Identity requires unique email while retaining default password policies. IUserAuthentication returns only credential-validation data. LoginUserHandler requests an access token through Application's IAccessTokenGenerator only after successful authentication, then returns UserId, AccessToken, and ExpiresAtUtc. An unknown email and an incorrect password return the same failure result with no token.
+Identity is implemented with AddIdentityCore<ApplicationUser> and EF stores. Register and Login use IUserRegistration and IUserAuthentication, with Infrastructure adapters using UserManager. Registration uses UserName = Email and Identity requires unique email while retaining default password policies. IUserAuthentication returns only credential-validation data. After successful authentication, LoginUserHandler generates an access token and persists a refresh token through IAccessTokenGenerator and IRefreshTokenService. It returns UserId, AccessToken, AccessTokenExpiresAtUtc, RefreshToken, and RefreshTokenExpiresAtUtc. Unknown email and incorrect password return the same failure with all token fields null and no token generation.
 
-Infrastructure issues HS256 JWT access tokens and configures Bearer validation through AddJwtAuthentication. API explicitly invokes that registration, using shared settings for signature, issuer, audience, and lifetime validation, and calls UseAuthentication before UseAuthorization. The sub claim is preserved without inbound mapping. Application references neither Identity nor JWT libraries. No authentication endpoints, cookies, or external providers are implemented; refresh tokens remain pending, so authentication is not complete.
+Infrastructure issues HS256 JWT access tokens and configures Bearer validation through AddJwtAuthentication. API explicitly invokes that registration, using shared settings for signature, issuer, audience, and lifetime validation, and calls UseAuthentication before UseAuthorization. The sub claim is preserved without inbound mapping. AddRefreshTokens is a separate registration with a configurable lifetime. Application references no Identity, JWT, cryptography, EF, or Infrastructure types.
 
-The context uses `IdentityUserContext<ApplicationUser, Guid>` without global roles. Future Workspace Admin/Member roles are separate domain concepts, not global Identity roles. No roles are registered or seeded. `20260925192607_AddIdentity` was applied manually to the local `Kwestie` database; Register, Login, and JWT required no additional migration. Refresh tokens remain unimplemented.
+RefreshSessionHandler rotates the supplied token through IRefreshTokenService and generates a new access token for the user recovered from persistence, never a user ID supplied by the caller. Infrastructure stores only SHA-256 hashes of random refresh tokens, uses rowversion to prevent concurrent reuse, and saves revocation plus replacement atomically. Domain is unchanged. Missing, malformed, expired, revoked, and concurrently consumed tokens have the same public failure result. No authentication endpoints, cookies, logout, or external providers are implemented.
+
+The context uses IdentityUserContext<ApplicationUser, Guid> without global roles. Future Workspace Admin/Member roles are separate domain concepts, not global Identity roles. No roles are registered or seeded. AddIdentity was applied manually locally. 20260929220522_AddRefreshTokens is also applied locally, and the complete Login + Refresh + JWT flow has passed real SQL tests. Authentication HTTP endpoints, logout, and Angular authentication integration are still absent, so authentication is not complete.
 
 OAuth 2.0 / OpenID Connect may be introduced later if Kwestie needs external identity providers, enterprise SSO, or third-party clients.
 
@@ -207,6 +210,8 @@ SQL Server through Entity Framework Core is the accepted persistence direction.
 The persistence implementation and `InitialCreate` migration are present. The migration was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, SQL Server IDENTITY generation, EF's update of `Number`, and retrieval through a separate DbContext.
 
 `AddIdentity` also exists and was applied manually to the same database. AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens now exist physically in SQL Server, and the migration is recorded in `__EFMigrationsHistory`.
+
+AddRefreshTokens adds only the Infrastructure RefreshTokens table with a cascading FK to AspNetUsers, a unique hash index, and rowversion. 20260929220522_AddRefreshTokens is applied to the local Kwestie database. Older migrations, Domain, and Kwesties mapping remain unchanged.
 
 Persistence configuration belongs in Infrastructure.
 
@@ -232,7 +237,7 @@ The solution currently contains:
 
 At the current stage, meaningful automated coverage exists in all three test projects.
 
-Application tests cover Create Kwestie using a small repository fake and a controlled .NET `TimeProvider`, and Register and Login using small IUserRegistration, IUserAuthentication, and IAccessTokenGenerator fakes, without mocking libraries. Login tests verify that invalid credentials do not invoke token generation.
+Application tests cover Create Kwestie using a small repository fake and a controlled TimeProvider, and Register, Login, and Refresh using small service fakes without mocking libraries. They verify both tokens/expirations, exact user IDs, cancellation forwarding, result invariants, and no issuance on invalid credentials or invalid refresh.
 
 IntegrationTests contains:
 
@@ -241,9 +246,10 @@ IntegrationTests contains:
 - A real user-registration test against SQL Server through the `IUserRegistration` implementation and Identity's `UserManager`. It verifies persistence in `AspNetUsers`, retrieval through a separate DbContext, normalized Email/UserName values, an Identity-generated `PasswordHash`, password validation through Identity's password hasher, and duplicate-email rejection.
 - A real Login test against SQL Server that registers a user, validates credentials through `IUserAuthentication` in a fresh scope, checks equivalent rejection results for an incorrect password and an unknown email, and verifies user cleanup in finally. It checks that EF has no pending model changes before writing.
 - Database-free JWT tests for claims, signature, configured lifetime, Bearer validation, invalid tokens, and startup options validation using only test signing material.
-- A real SQL Server LoginUserHandler flow with real credential validation and JWT generation, cryptographic validation, equivalent token-free rejections, no pending model changes, and user cleanup in finally.
+- Database-free refresh tests for mapping, FK/cascade, unique hash index, rowversion, absence of raw storage, DI, options, and malformed input rejection.
+- Passing SQL refresh tests for issuance, hash-only persistence, rotation, reuse rejection, expiration, concurrent consumption, and the complete Login + Refresh + JWT flow, with user/token cleanup in finally.
 
-The real tests require the existing local `Kwestie` database with `InitialCreate` and `AddIdentity` already applied, and `ConnectionStrings:Kwestie` from the API's shared .NET User Secrets. They remove their created Kwestie or user in `finally`, even if an assertion fails after insertion. They do not create the database or apply migrations automatically.
+The full real test suite requires the local Kwestie database with InitialCreate, AddIdentity, and AddRefreshTokens applied, plus ConnectionStrings:Kwestie in shared API User Secrets. All three migrations are applied locally. Tests remove their own data in finally and never create the database or apply migrations. The full suite passed on 2026-09-30, including real SQL coverage: 93 tests, 93 passed, 0 failed, 0 skipped. Model/snapshot agreement is checked separately from database migration application.
 
 Domain and current Application tests run without database, API, or infrastructure dependencies.
 

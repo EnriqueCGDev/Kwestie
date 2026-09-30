@@ -1,6 +1,6 @@
-namespace Kwestie.Application.Authentication.Login;
+namespace Kwestie.Application.Authentication.Refresh;
 
-public sealed class LoginUserResult
+public sealed class RefreshSessionResult
 {
     public bool Succeeded => UserId.HasValue;
     public Guid? UserId { get; }
@@ -9,7 +9,7 @@ public sealed class LoginUserResult
     public string? RefreshToken { get; }
     public DateTimeOffset? RefreshTokenExpiresAtUtc { get; }
 
-    private LoginUserResult(Guid? userId, string? accessToken, DateTimeOffset? accessTokenExpiresAtUtc,
+    private RefreshSessionResult(Guid? userId, string? accessToken, DateTimeOffset? accessTokenExpiresAtUtc,
         string? refreshToken, DateTimeOffset? refreshTokenExpiresAtUtc)
     {
         UserId = userId;
@@ -19,7 +19,7 @@ public sealed class LoginUserResult
         RefreshTokenExpiresAtUtc = refreshTokenExpiresAtUtc;
     }
 
-    public static LoginUserResult Success(Guid userId, string accessToken, DateTimeOffset accessTokenExpiresAtUtc,
+    public static RefreshSessionResult Success(Guid userId, string accessToken, DateTimeOffset accessTokenExpiresAtUtc,
         string refreshToken, DateTimeOffset refreshTokenExpiresAtUtc)
     {
         if (userId == Guid.Empty)
@@ -34,5 +34,5 @@ public sealed class LoginUserResult
         return new(userId, accessToken, accessTokenExpiresAtUtc, refreshToken, refreshTokenExpiresAtUtc);
     }
 
-    public static LoginUserResult InvalidCredentials() => new(null, null, null, null, null);
+    public static RefreshSessionResult InvalidToken() => new(null, null, null, null, null);
 }

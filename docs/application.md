@@ -16,6 +16,10 @@ Authentication/
 │   ├── LoginUserHandler.cs
 │   ├── LoginUserResult.cs
 │   └── UserAuthenticationResult.cs
+├── Refresh/
+│   ├── RefreshSessionCommand.cs
+│   ├── RefreshSessionHandler.cs
+│   └── RefreshSessionResult.cs
 ├── Register/
 │   ├── IUserRegistration.cs
 │   ├── RegisterUserCommand.cs
@@ -23,7 +27,10 @@ Authentication/
 │   └── RegisterUserResult.cs
 └── Tokens/
     ├── IAccessTokenGenerator.cs
-    └── AccessTokenResult.cs
+    ├── AccessTokenResult.cs
+    ├── IRefreshTokenService.cs
+    ├── RefreshTokenResult.cs
+    └── RefreshTokenRotationResult.cs
 Kwesties/
 ├── IKwestieRepository.cs
 └── Create/
@@ -71,21 +78,29 @@ The handler uses .NET `TimeProvider` rather than reading the real clock directly
 
 The current account convention is UserName = Email. Infrastructure implements registration through Identity. `RegisterUserResult` reports `Succeeded`, a nullable Guid `UserId`, and a read-only collection of error strings. Success includes the user ID and no errors; rejection includes error descriptions and no user ID. Infrastructure exceptions are not converted into validation failures.
 
-Cancellation is forwarded to Infrastructure, which checks it before invoking Identity. UserManager.CreateAsync has no CancellationToken overload, so cancellation cannot interrupt that operation through this API. Register does not emit tokens and has no HTTP endpoint or handler DI registration. Refresh tokens remain pending.
+Cancellation is forwarded to Infrastructure, which checks it before invoking Identity. UserManager.CreateAsync has no CancellationToken overload, so cancellation cannot interrupt that operation through this API. Register does not emit tokens and has no HTTP endpoint or handler DI registration.
 
 ## Login
 
 `LoginUserCommand` contains only Email and Password. `LoginUserHandler` first delegates both values and the CancellationToken to `IUserAuthentication.AuthenticateAsync`. This contract returns `UserAuthenticationResult`, containing only credential-validation success and a nullable user ID. Infrastructure does not construct the final Login result.
 
-If credentials are valid, the handler calls `IAccessTokenGenerator.Generate` with exactly the authenticated user ID. It returns `LoginUserResult` with `Succeeded = true`, a non-empty Guid `UserId`, a nonblank `AccessToken`, and a non-default UTC `ExpiresAtUtc`. Both dependencies use primary-constructor parameters stored in private readonly fields. Application remains independent of Identity, JWT libraries, and Infrastructure types.
+If credentials are valid, the handler calls `IAccessTokenGenerator.Generate` and then awaits `IRefreshTokenService.IssueAsync` for exactly the authenticated user ID, forwarding cancellation. `LoginUserResult` contains Succeeded, UserId, AccessToken, AccessTokenExpiresAtUtc, RefreshToken, and RefreshTokenExpiresAtUtc. Success requires a non-empty user ID, nonblank tokens, and non-default UTC expirations. Dependencies use primary-constructor parameters stored in private readonly fields. Application remains independent of Identity, JWT, cryptography, EF, and Infrastructure types.
 
-An unknown email and an incorrect password both return `Succeeded = false`, with null UserId, AccessToken, and ExpiresAtUtc. The token generator is not called. Invalid credentials are results, not exceptions; infrastructure failures still propagate. This is equivalence of returned data, not a constant-time execution guarantee.
+An unknown email and an incorrect password both return Succeeded = false, with null UserId and all four token/expiration fields null. Neither token generator nor refresh-token service is called. Invalid credentials are results, not exceptions; infrastructure failures still propagate. This is equivalence of returned data, not a constant-time execution guarantee.
 
-Infrastructure checks cancellation before the lookup and before password validation; the UserManager operations do not accept the caller's CancellationToken. Login has no HTTP endpoint or handler DI registration and creates no cookie or refresh token.
+Infrastructure checks cancellation before the lookup and before password validation; the UserManager operations do not accept the caller's CancellationToken. Login has no HTTP endpoint or handler DI registration and creates no cookie. Its persistence flow has been validated against local SQL Server with 20260929220522_AddRefreshTokens applied.
 
 ## Access Tokens
 
-`Authentication/Tokens/IAccessTokenGenerator` provides synchronous `AccessTokenResult Generate(Guid userId)`. Token creation is local computation; its Application-owned result contains only the token string and UTC expiration. The contract is independent of Login and can be reused by a future refresh-token flow. Infrastructure currently implements it with JWT; Application does not reference JWT token types, signing credentials, or validation libraries.
+`Authentication/Tokens/IAccessTokenGenerator` provides synchronous `AccessTokenResult Generate(Guid userId)`. Token creation is local computation; its Application-owned result contains only the token string and UTC expiration. Login and Refresh both use this contract. Infrastructure implements it with JWT; Application does not reference JWT token types, signing credentials, or validation libraries.
+
+## Refresh Tokens and Session Renewal
+
+`IRefreshTokenService` exposes IssueAsync(Guid userId, CancellationToken) and RotateAsync(string? refreshToken, CancellationToken). Issue returns RefreshTokenResult with the newly generated public token and its UTC expiration. Successful rotation returns RefreshTokenRotationResult containing the persisted UserId, a new refresh token, and its expiration. Invalid, malformed, expired, revoked, previously used tokens, and a lost consumption race all return the same failure with null fields. Hashing, random generation, storage, and concurrency belong exclusively to Infrastructure.
+
+`RefreshSessionCommand` contains only RefreshToken, never a client-supplied UserId. RefreshSessionHandler awaits rotation, forwarding cancellation. On failure it does not generate an access token. On success it uses exactly the UserId returned by rotation to generate a new access token. RefreshSessionResult has the same six fields and success invariants as LoginUserResult; an invalid refresh has no user, tokens, or expirations. The previous refresh token is never returned for reuse.
+
+Rotation commits before access-token generation. If generation subsequently fails, the error propagates and the consumed token stays revoked; there is no rollback across these two contracts or automatic retry. Login persists its refresh token after generating the access token and returns only after saving succeeds. There is no logout, authentication HTTP endpoint, or Angular authentication integration yet.
 
 ## Validation Boundaries
 
@@ -99,7 +114,7 @@ Implemented: `CreateKwestieCommand`, `CreateKwestieHandler`, `CreateKwestieResul
 
 Register is also implemented through RegisterUserCommand, RegisterUserHandler, RegisterUserResult, and IUserRegistration. Unit tests use a small fake to verify input/cancellation forwarding and success/error results; a separate Infrastructure integration test verifies real Identity user persistence.
 
-Login unit tests use authentication and token-generator fakes to verify input/cancellation forwarding, generation for the exact authenticated ID, returned token/expiration, and no generation for rejected credentials. Result tests reject empty IDs, blank tokens, and invalid UTC expiration values. IntegrationTests retains the real credential-validation test and adds a real Login + JWT flow with cryptographic validation and user cleanup in finally. JWT-only tests need no SQL Server or developer signing secret.
+Login and Refresh unit tests use small fakes to verify input/cancellation forwarding, exact user IDs, both tokens and expirations, and no generation on rejection. Result tests reject empty IDs, blank tokens, and invalid UTC expiration values. IntegrationTests validates credential checking and the full Login + Refresh + JWT flow against SQL Server with cleanup in finally. With 20260929220522_AddRefreshTokens applied locally, SQL tests have passed for issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. The full suite passed on 2026-09-30: 93 tests, 93 passed, 0 failed, 0 skipped. Database-free tests cover JWT, mapping, DI, configuration, and malformed refresh rejection.
 
 Tests use a local recording repository fake and a fixed time provider. They cover the created entity and result, generated ID, timestamps, unassigned number, cancellation-token forwarding, waiting for the repository, and domain rejection without a repository call.
 
