@@ -59,4 +59,4 @@ No body. Uses the refresh cookie, revokes only the supplied active refresh token
 
 The cookie Path is now /api/auth for issuance, rotation, and deletion, allowing browser delivery to both Refresh and Logout. Cookies from the previous /api/auth/refresh scope must be cleared when updating an existing local browser session.
 
-Angular authentication integration and CORS are not implemented. The intended browser integration keeps the access token in memory and lets the browser send the HttpOnly refresh cookie; JavaScript does not read or store it. Cross-site deployment would require a separate CORS/CSRF decision rather than changing SameSite preemptively.
+Angular now consumes these contracts through an in-memory AuthService and relative URLs via a local development proxy. The access token is not persisted, and Angular never reads the HttpOnly refresh cookie. Authentication UI, guards, Bearer interceptor, automatic refresh/session recovery, and deployment-specific CORS remain pending. Cross-site deployment would require a separate CORS/CSRF decision rather than changing SameSite preemptively.

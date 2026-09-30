@@ -64,6 +64,8 @@
               "buildTarget": "kwestie-web:build:production"
             },
             "development": {
+              "proxyConfig": "proxy.conf.json",
+              "ssl": true,
               "buildTarget": "kwestie-web:build:development"
             }
           },

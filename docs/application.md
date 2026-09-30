@@ -103,7 +103,7 @@ Infrastructure checks cancellation before the lookup and before password validat
 
 `RefreshSessionCommand` contains only RefreshToken, never a client-supplied UserId. RefreshSessionHandler awaits rotation, forwarding cancellation. On failure it does not generate an access token. On success it uses exactly the UserId returned by rotation to generate a new access token. RefreshSessionResult has the same six fields and success invariants as LoginUserResult; an invalid refresh has no user, tokens, or expirations. The previous refresh token is never returned for reuse.
 
-Rotation commits before access-token generation. If generation subsequently fails, the error propagates and the consumed token stays revoked; there is no rollback across these two contracts or automatic retry. Login persists its refresh token after generating the access token and returns only after saving succeeds. API exposes session renewal through POST /api/auth/refresh and registers its handler in the composition root. Angular authentication integration remains pending.
+Rotation commits before access-token generation. If generation subsequently fails, the error propagates and the consumed token stays revoked; there is no rollback across these two contracts or automatic retry. Login persists its refresh token after generating the access token and returns only after saving succeeds. API exposes session renewal through POST /api/auth/refresh and registers its handler in the composition root. Angular authentication UI and automatic session recovery remain pending; the base HTTP service infrastructure is implemented.
 
 ## Logout
 

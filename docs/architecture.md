@@ -179,6 +179,10 @@ src/app/
 └── app.routes.ts
 ```
 
+`core/auth` contains HTTP contracts and AuthService using standalone HttpClient, inject(), and signals. Login/Refresh replace the read-only in-memory session; successful Logout clears it. Register does not establish a session. Login/Refresh/Logout use withCredentials; refresh tokens remain exclusively in the backend-managed HttpOnly cookie. No browser storage is used. isAuthenticated indicates session presence, not a live JWT-expiration check. Errors propagate to callers without global handling or automatic retries.
+
+Local `ng serve` uses HTTPS and proxies `/api/**` to the local HTTPS API. This is development-only configuration; CORS and deployment topology remain undecided. Authentication UI, guards, Bearer interceptor, automatic refresh, and startup session recovery are not implemented.
+
 NgRx is not part of the current implementation and should only be introduced if application state becomes complex enough to justify it.
 
 ## Authentication
@@ -199,7 +203,7 @@ Infrastructure issues HS256 JWT access tokens and configures Bearer validation t
 
 RefreshSessionHandler rotates the supplied token through IRefreshTokenService and generates a new access token for the user recovered from persistence, never a user ID supplied by the caller. Infrastructure stores only SHA-256 hashes of random refresh tokens, uses rowversion to prevent concurrent reuse, and saves revocation plus replacement atomically. Domain is unchanged. Missing, malformed, expired, revoked, and concurrently consumed tokens have the same public failure result. API exposes POST /api/auth/register, POST /api/auth/login, POST /api/auth/refresh, and POST /api/auth/logout. External providers remain unimplemented.
 
-The context uses IdentityUserContext<ApplicationUser, Guid> without global roles. Future Workspace Admin/Member roles are separate domain concepts, not global Identity roles. No roles are registered or seeded. AddIdentity was applied manually locally. 20260929220522_AddRefreshTokens is also applied locally, and the complete Login + Refresh + JWT flow has passed real SQL tests. Angular authentication integration is still absent, so authentication is not complete. CORS is not configured.
+The context uses IdentityUserContext<ApplicationUser, Guid> without global roles. Future Workspace Admin/Member roles are separate domain concepts, not global Identity roles. No roles are registered or seeded. AddIdentity was applied manually locally. 20260929220522_AddRefreshTokens is also applied locally, and the complete Login + Refresh + JWT flow has passed real SQL tests. Angular has base authentication service infrastructure; UI, guards, Bearer interceptor, and automatic refresh/session recovery remain pending, so authentication is not complete. CORS is not configured.
 
 OAuth 2.0 / OpenID Connect may be introduced later if Kwestie needs external identity providers, enterprise SSO, or third-party clients.
 
