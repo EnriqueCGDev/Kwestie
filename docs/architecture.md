@@ -181,7 +181,7 @@ src/app/
 
 `core/auth` contains HTTP contracts and AuthService using standalone HttpClient, inject(), and signals. Login/Refresh replace the read-only in-memory session; successful Logout clears it. Register does not establish a session. Login/Refresh/Logout use withCredentials; refresh tokens remain exclusively in the backend-managed HttpOnly cookie. No browser storage is used. isAuthenticated indicates session presence, not a live JWT-expiration check. Errors propagate to callers without global handling or automatic retries.
 
-Local `ng serve` uses HTTPS and proxies `/api/**` to the local HTTPS API. This is development-only configuration; CORS and deployment topology remain undecided. Authentication UI, guards, Bearer interceptor, automatic refresh, and startup session recovery are not implemented.
+Local `ng serve` uses HTTPS and proxies `/api/**` to the local HTTPS API. This is development-only configuration; CORS and deployment topology remain undecided. Lazy standalone Login and Register screens use Reactive Forms with required email/password checks and email format validation. Identity remains responsible for password policy. Post-login navigation to a protected area, guards, Bearer interceptor, automatic refresh, and startup session recovery are not implemented.
 
 NgRx is not part of the current implementation and should only be introduced if application state becomes complex enough to justify it.
 

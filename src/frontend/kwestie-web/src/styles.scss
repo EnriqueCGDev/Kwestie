@@ -1,1 +1,56 @@
-/* You can add global styles to this file, and also import other style files */
+* { box-sizing: border-box; }
+
+html { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172238; }
+body { margin: 0; }
+button, input { font: inherit; }
+a { color: #3157b7; text-underline-offset: 3px; }
+
+.auth-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+  background: radial-gradient(circle at 85% 15%, #dce8ff 0, transparent 38%),
+    radial-gradient(circle at 12% 82%, #e1eeea 0, transparent 35%), #f3f6fb;
+}
+
+.auth-card {
+  width: min(100%, 440px);
+  padding: clamp(1.5rem, 5vw, 2.5rem);
+  background: #fff;
+  border: 1px solid #e0e6f0;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgb(30 47 84 / 9%);
+}
+
+.auth-brand { display: flex; align-items: center; gap: .7rem; font-weight: 750; font-size: 1.1rem; letter-spacing: -.02em; }
+.auth-mark { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 10px; background: #234697; color: #fff; }
+.auth-heading { margin: 2rem 0 1.75rem; }
+.auth-eyebrow { color: #3157b7; font-size: .72rem; font-weight: 750; letter-spacing: .13em; margin: 0 0 .65rem; }
+.auth-heading h1 { margin: 0; font-size: clamp(1.7rem, 5vw, 2rem); letter-spacing: -.04em; line-height: 1.15; }
+.auth-heading > p:last-child { color: #59677e; line-height: 1.5; margin: .75rem 0 0; }
+.auth-field { margin-bottom: 1.25rem; }
+.auth-field label { display: block; margin-bottom: .5rem; font-size: .9rem; font-weight: 650; }
+.auth-field input { width: 100%; min-height: 46px; padding: .7rem .85rem; border: 1px solid #a7b3c5; border-radius: 9px; background: #fff; color: #172238; }
+.auth-field input::placeholder { color: #75839a; }
+.auth-field input:hover { border-color: #60718d; }
+.auth-field input:focus-visible, .auth-submit:focus-visible, .auth-footer a:focus-visible { outline: 3px solid #f4b443; outline-offset: 2px; }
+.auth-field input[aria-invalid="true"] { border-color: #ad3544; }
+.auth-field-error { margin: .4rem 0 0; color: #982838; font-size: .82rem; }
+.auth-submit { display: grid; place-items: center; width: 100%; min-height: 48px; padding: .7rem 1rem; border: 0; border-radius: 9px; background: #234697; color: #fff; font-weight: 700; cursor: pointer; text-decoration: none; }
+.auth-submit:hover:not(:disabled) { background: #193779; }
+.auth-submit:disabled { opacity: .65; cursor: wait; }
+.auth-submit--link { margin-top: 1.25rem; }
+.auth-footer { text-align: center; color: #59677e; font-size: .9rem; margin: 1.7rem 0 0; }
+.auth-footer a { font-weight: 700; }
+.auth-notice { padding: .9rem 1rem; border-radius: 9px; font-size: .9rem; line-height: 1.45; margin-bottom: 1.25rem; }
+.auth-notice--error { background: #fff1f2; color: #852535; border: 1px solid #f1bec4; }
+.auth-notice--success { background: #ecf7f1; color: #175b39; border: 1px solid #add9c1; }
+.auth-notice p { margin: 0 0 .4rem; }
+.auth-notice ul { margin: 0; padding-left: 1.2rem; }
+
+@media (max-width: 480px) {
+  .auth-page { padding: 1rem; }
+  .auth-card { border-radius: 15px; box-shadow: 0 12px 35px rgb(30 47 84 / 7%); }
+}
