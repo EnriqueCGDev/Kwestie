@@ -72,6 +72,27 @@ describe('AuthService', () => {
     expect(service.session()).toEqual(renewed);
   });
 
+  it('restores a session through the existing refresh request', async () => {
+    const refresh = vi.spyOn(service, 'refresh');
+    const restoring = service.restoreSession();
+    expect(refresh).toHaveBeenCalledOnce();
+    const request = http.expectOne('/api/auth/refresh');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.body).toBeNull();
+    request.flush(session);
+    await expect(restoring).resolves.toBeUndefined();
+    expect(service.session()).toEqual(session);
+  });
+
+  it('continues without a session when initial refresh fails', async () => {
+    const restoring = service.restoreSession();
+    http.expectOne('/api/auth/refresh').flush(null, { status: 401, statusText: 'Unauthorized' });
+    await expect(restoring).resolves.toBeUndefined();
+    expect(service.session()).toBeNull();
+    expect(service.isAuthenticated()).toBe(false);
+  });
+
   it('clears the session only after logout succeeds with 204', () => {
     login();
     service.logout().subscribe();

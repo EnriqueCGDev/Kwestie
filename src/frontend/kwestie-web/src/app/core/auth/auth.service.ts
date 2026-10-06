@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { computed, inject, Service, signal } from '@angular/core';
-import { tap } from 'rxjs';
+import { catchError, firstValueFrom, map, of, tap } from 'rxjs';
 import { AuthenticationResponse, LoginRequest, RegisterRequest, RegisterResponse } from './auth.models';
 
 @Service()
@@ -24,6 +24,13 @@ export class AuthService {
   refresh() {
     return this.http.post<AuthenticationResponse>('/api/auth/refresh', null, { withCredentials: true })
       .pipe(tap(session => this.storeSession(session)));
+  }
+
+  restoreSession(): Promise<void> {
+    return firstValueFrom(this.refresh().pipe(
+      map(() => undefined),
+      catchError(() => of(undefined)),
+    ));
   }
 
   logout() {

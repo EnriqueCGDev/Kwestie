@@ -29,7 +29,7 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 
 ### Planned
 
-- Protected-area navigation, guards, Bearer interceptor, and automatic refresh/session recovery
+- Protected-area navigation, guards, and automatic refresh after a 401
 - CORS/frontend configuration according to deployment
 - Docker
 - CI/CD
@@ -38,7 +38,7 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 
 Kwestie is under active development.
 
-InitialCreate, AddIdentity, and 20260929220522_AddRefreshTokens are applied to the local Kwestie database. Login returns access and refresh tokens with separate UTC expirations, and Refresh rotates the persisted token. The complete Login + Refresh + JWT flow has been validated against SQL Server, including issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. API exposes Register, Login, Refresh, and Logout endpoints. Access tokens are returned as JSON for Bearer use; refresh tokens are sent only in a secure HttpOnly cookie. Angular has Login and Register screens backed by the in-memory authentication service; post-login navigation to a protected area, guards, Bearer interceptor, automatic refresh/session recovery, and deployment-specific CORS remain pending. Authentication is not complete.
+InitialCreate, AddIdentity, and 20260929220522_AddRefreshTokens are applied to the local Kwestie database. Login returns access and refresh tokens with separate UTC expirations, and Refresh rotates the persisted token. The complete Login + Refresh + JWT flow has been validated against SQL Server, including issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. API exposes Register, Login, Refresh, and Logout endpoints. Access tokens are returned as JSON for Bearer use; refresh tokens are sent only in a secure HttpOnly cookie. Angular has Login and Register screens backed by the in-memory authentication service. It attempts one cookie-backed Refresh during startup and attaches the in-memory access token to Kwestie API requests outside `/api/auth/...`. Post-login navigation to a protected area, guards, automatic refresh after a 401, and deployment-specific CORS remain pending. Authentication is not complete.
 
 Implemented so far:
 
@@ -52,7 +52,7 @@ Implemented so far:
 
 Create Kwestie has an Infrastructure repository implementation using EF Core and SQL Server. `InitialCreate` exists and was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, generated Number, retrieval, and cleanup. There is still no Create Kwestie API endpoint; workspace and membership checks required before exposing this use case are not implemented.
 
-Full authentication is not implemented yet. Post-login navigation to a protected area, guards, Bearer interceptor, automatic refresh/session recovery, workspaces, assignment, comments, history, search, and dashboard functionality remain pending.
+Full authentication is not implemented yet. Post-login navigation to a protected area, guards, automatic refresh after a 401, workspaces, assignment, comments, history, search, and dashboard functionality remain pending.
 
 ## Architecture
 
@@ -152,7 +152,7 @@ RefreshTokens:LifetimeDays defaults to 30 in appsettings.json and is separate fr
 
 From `src/frontend/kwestie-web`, run `npm start` and open `https://localhost:4200` (accept the local development certificate). The development proxy forwards `/api/**` to `https://localhost:7204`; start the HTTPS API separately. `secure: false` in the proxy accepts the backend development certificate only; it does not disable HTTPS or the cookie's Secure attribute. Services use relative URLs, without CORS or production deployment configuration.
 
-Run `npm run build` and `npm test -- --watch=false` for frontend validation. AuthService returns Observables: callers subscribe to execute requests. Session state lives only in memory; reloading clears it. No session restoration runs at startup.
+Run `npm run build` and `npm test -- --watch=false` for frontend validation. AuthService returns Observables: callers subscribe to execute requests. Session state lives only in memory; reloading attempts one `/api/auth/refresh` with the HttpOnly cookie. Failure leaves the app running without a session. The Bearer interceptor does not refresh or retry requests.
 
 ## Development Principles
 
