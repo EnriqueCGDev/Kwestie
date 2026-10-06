@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { AuthenticationResponse, LoginRequest } from '../../../core/auth/auth.models';
@@ -9,6 +9,7 @@ import { Login } from './login';
 describe('Login', () => {
   let response: Subject<AuthenticationResponse>;
   let auth: { login: ReturnType<typeof vi.fn> };
+  let navigate: ReturnType<typeof vi.spyOn>;
   const credentials: LoginRequest = { email: 'user@example.com', password: 'password' };
   const session: AuthenticationResponse = {
     userId: 'user-id', accessToken: 'test-access-token',
@@ -20,6 +21,7 @@ describe('Login', () => {
     response = new Subject<AuthenticationResponse>();
     auth = { login: vi.fn(() => response.asObservable()) };
     TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: AuthService, useValue: auth }] });
+    navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
   });
 
   it('rejects invalid fields without calling the service and exposes accessible messages', () => {
@@ -50,6 +52,7 @@ describe('Login', () => {
     response.complete();
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Sesión iniciada correctamente.');
+    expect(navigate).toHaveBeenCalledWith('/app');
     expect(fixture.nativeElement.querySelector('button[type="submit"]').disabled).toBe(false);
   });
 
@@ -62,6 +65,7 @@ describe('Login', () => {
     expect(fixture.nativeElement.querySelector('[role="alert"]').textContent)
       .toContain('Revisa tu correo y contraseña.');
     expect(fixture.nativeElement.textContent).not.toContain('private');
+    expect(navigate).not.toHaveBeenCalled();
 
     response = new Subject<AuthenticationResponse>();
     fixture.componentInstance.submit();
@@ -69,5 +73,6 @@ describe('Login', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[role="alert"]').textContent)
       .toContain('Inténtalo de nuevo.');
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

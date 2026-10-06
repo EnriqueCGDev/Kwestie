@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 
@@ -12,6 +12,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 })
 export class Login {
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly form = new FormGroup({
@@ -35,7 +36,10 @@ export class Login {
     this.auth.login(this.form.getRawValue())
       .pipe(finalize(() => this.pending.set(false)), takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => this.succeeded.set(true),
+        next: () => {
+          this.succeeded.set(true);
+          void this.router.navigateByUrl('/app');
+        },
         error: (error: unknown) => this.errorMessage.set(
           error instanceof HttpErrorResponse && error.status === 401
             ? 'No pudimos iniciar sesión. Revisa tu correo y contraseña.'
