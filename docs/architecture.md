@@ -43,7 +43,7 @@ Application may define contracts that it needs from external systems.
 
 The first implemented use case is Create Kwestie. Its handler creates the Domain entity using a generated ID and .NET `TimeProvider`, awaits `IKwestieRepository.AddAsync`, and returns the entity ID. Infrastructure implements and registers that repository with an EF Core SQL Server context. There is no Create Kwestie API endpoint or handler registration yet.
 
-Create Workspace is also implemented in Application. Its handler creates a Domain Workspace and the creator's active Admin membership using one generated workspace ID and one TimeProvider timestamp. `IWorkspaceRepository.AddAsync` accepts both entities and requires atomic persistence before completion. This contract has no Infrastructure implementation, DI registration, or HTTP endpoint yet; no separate UnitOfWork is needed for this base use case.
+Create Workspace is also implemented in Application. Its handler creates a Domain Workspace and the creator's active Admin membership using one generated workspace ID and one TimeProvider timestamp. `IWorkspaceRepository.AddAsync` accepts both entities and requires atomic persistence before completion. Infrastructure's scoped WorkspaceRepository implements it with one awaited SaveChangesAsync and EF's normal transaction. Workspace handler registration in API and HTTP endpoints remain pending; no separate UnitOfWork is needed for this base use case.
 
 Current contract and implementation:
 
@@ -69,7 +69,7 @@ Kwestie may use a lightweight CQRS style where separating commands and queries i
 
 Contains technical implementations required by the application.
 
-Implemented responsibilities include EF Core SQL Server persistence, Fluent API mapping, and `KwestieRepository`. `AddInfrastructure` registers the context and repository; the API supplies `ConnectionStrings:Kwestie` from configuration.
+Implemented responsibilities include EF Core SQL Server persistence, Fluent API mapping, and `KwestieRepository`/`WorkspaceRepository`. `AddInfrastructure` registers the context and scoped repositories; the API supplies `ConnectionStrings:Kwestie` from configuration.
 
 Infrastructure also contains `ApplicationUser : IdentityUser<Guid>` and registers Identity Core with EF stores using the same `KwestieDbContext`. `ApplicationUser` is not a Domain entity. Neither Domain nor Application depends on Identity types.
 
@@ -207,7 +207,7 @@ Infrastructure issues HS256 JWT access tokens and configures Bearer validation t
 
 RefreshSessionHandler rotates the supplied token through IRefreshTokenService and generates a new access token for the user recovered from persistence, never a user ID supplied by the caller. Infrastructure stores only SHA-256 hashes of random refresh tokens, uses rowversion to prevent concurrent reuse, and saves revocation plus replacement atomically. Domain is unchanged. Missing, malformed, expired, revoked, and concurrently consumed tokens have the same public failure result. API exposes POST /api/auth/register, POST /api/auth/login, POST /api/auth/refresh, and POST /api/auth/logout. External providers remain unimplemented.
 
-The context uses IdentityUserContext<ApplicationUser, Guid> without global roles. Workspace Admin/Member roles are implemented as Domain concepts, not global Identity roles. No Identity roles are registered or seeded. AddIdentity was applied manually locally. 20260929220522_AddRefreshTokens is also applied locally, and the complete Login + Refresh + JWT flow has passed real SQL tests. Angular has Login/Register UI, one startup refresh attempt, a Bearer interceptor, and a guarded minimal `/app` route with Logout. Workspace persistence/HTTP/UI functionality and automatic refresh after a 401 remain pending, so authentication is not complete. CORS is not configured.
+The context uses IdentityUserContext<ApplicationUser, Guid> without global roles. Workspace Admin/Member roles are implemented as Domain concepts, not global Identity roles. No Identity roles are registered or seeded. AddIdentity was applied manually locally. 20260929220522_AddRefreshTokens is also applied locally, and the complete Login + Refresh + JWT flow has passed real SQL tests. Angular has Login/Register UI, one startup refresh attempt, a Bearer interceptor, and a guarded minimal `/app` route with Logout. Workspace HTTP/UI functionality and automatic refresh after a 401 remain pending, so authentication is not complete. CORS is not configured.
 
 OAuth 2.0 / OpenID Connect may be introduced later if Kwestie needs external identity providers, enterprise SSO, or third-party clients.
 
@@ -220,6 +220,8 @@ The persistence implementation and `InitialCreate` migration are present. The mi
 `AddIdentity` also exists and was applied manually to the same database. AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens now exist physically in SQL Server, and the migration is recorded in `__EFMigrationsHistory`.
 
 AddRefreshTokens adds only the Infrastructure RefreshTokens table with a cascading FK to AspNetUsers, a unique hash index, and rowversion. 20260929220522_AddRefreshTokens is applied to the local Kwestie database. Older migrations, Domain, and Kwesties mapping remain unchanged.
+
+Workspace and WorkspaceMember are mapped without Domain changes or navigations. WorkspaceMembers uses `(WorkspaceId, UserId)` as its composite primary key, a cascading FK to Workspaces, and a NO ACTION FK to AspNetUsers to prevent deleting users with memberships. No Kwesties-to-Workspaces FK is added. `20261007152213_AddWorkspaces` contains only the new tables, keys, FKs, and UserId index and was applied manually to the local Kwestie database.
 
 Persistence configuration belongs in Infrastructure.
 
@@ -253,6 +255,7 @@ IntegrationTests contains:
 
 - HTTP pipeline tests through WebApplicationFactory with real DI and SQL Server: registration, duplicate rejection, invalid login, JWT responses, secure refresh cookies, successive rotation, reuse rejection, and idempotent Logout with real revocation, cookie deletion, and an expired access token. HTTPS clients keep Secure enabled; test JWT configuration is public and separate from developer secrets.
 - EF model and materialization checks that do not require a database.
+- Database-free Workspace mapping/materialization, scoped repository DI, one awaited SaveChangesAsync, cancellation forwarding, and model/snapshot checks. Passing Workspace SQL tests verify round trips, deletion behavior, and rollback on membership FK failure with AddWorkspaces manually applied.
 - A real `KwestieRepository` round-trip test against SQL Server, including generated `Number` and retrieval through a separate DbContext.
 - A real user-registration test against SQL Server through the `IUserRegistration` implementation and Identity's `UserManager`. It verifies persistence in `AspNetUsers`, retrieval through a separate DbContext, normalized Email/UserName values, an Identity-generated `PasswordHash`, password validation through Identity's password hasher, and duplicate-email rejection.
 - A real Login test against SQL Server that registers a user, validates credentials through `IUserAuthentication` in a fresh scope, checks equivalent rejection results for an incorrect password and an unknown email, and verifies user cleanup in finally. It checks that EF has no pending model changes before writing.
@@ -260,7 +263,7 @@ IntegrationTests contains:
 - Database-free refresh tests for mapping, FK/cascade, unique hash index, rowversion, absence of raw storage, DI, options, and malformed input rejection.
 - Passing SQL refresh tests for issuance, hash-only persistence, rotation, reuse rejection, expiration, concurrent consumption, and the complete Login + Refresh + JWT flow, with user/token cleanup in finally.
 
-The full real test suite requires the local Kwestie database with InitialCreate, AddIdentity, and AddRefreshTokens applied, plus ConnectionStrings:Kwestie in shared API User Secrets. All three migrations are applied locally. Tests remove their own data in finally and never create the database or apply migrations. The full suite passed on 2026-09-30, including real HTTP and SQL coverage: 106 tests, 106 passed, 0 failed, 0 skipped. Model/snapshot agreement is checked separately from database migration application.
+The full real test suite requires the local Kwestie database with InitialCreate, AddIdentity, AddRefreshTokens, and AddWorkspaces applied, plus ConnectionStrings:Kwestie in shared API User Secrets. All four migrations are applied manually locally. Tests remove their own data in finally and never create the database or apply migrations. The full suite passed on 2026-10-07, including real HTTP and Workspace SQL coverage: 137 tests, 137 passed, 0 failed, 0 skipped. Model/snapshot agreement is checked separately from database migration application; HasPendingModelChanges is false.
 
 Domain and current Application tests run without database, API, or infrastructure dependencies.
 

@@ -6,15 +6,15 @@ Infrastructure implements technical details required by Application and depends 
 
 ## Persistence
 
-EF Core 10 and its SQL Server provider are configured through `KwestieDbContext`. The context receives typed options and exposes `Kwesties`. `KwestieConfiguration` applies Fluent API mapping. The API registers the context and scoped repository through `AddInfrastructure(connectionString)`; registration does not create or connect to the database.
+EF Core 10 and its SQL Server provider are configured through `KwestieDbContext`. The context receives typed options and exposes `Kwesties`, `RefreshTokens`, `Workspaces`, and `WorkspaceMembers`. Explicit Fluent API configurations map each entity. The API registers the context and scoped repositories through `AddInfrastructure(connectionString)`; registration does not create or connect to the database.
 
 ## Identity
 
 ASP.NET Core Identity is integrated exclusively in Infrastructure. `Identity/ApplicationUser` derives from `IdentityUser<Guid>` without additional properties. Domain and Application do not depend on Identity types.
 
-`KwestieDbContext` derives from `IdentityUserContext<ApplicationUser, Guid>`, sharing the existing SQL Server `Kwestie` database. It calls the base model configuration before applying `KwestieConfiguration` and retains its `Kwesties` DbSet. `CreatedById` and `AssignedToId` remain Guid references without navigations or foreign keys to ApplicationUser.
+`KwestieDbContext` derives from `IdentityUserContext<ApplicationUser, Guid>`, sharing the existing SQL Server `Kwestie` database. It calls the base model configuration before applying entity configurations. `CreatedById` and `AssignedToId` remain Guid references without navigations or foreign keys to ApplicationUser.
 
-`AddInfrastructure` registers Identity Core with EF stores and sets `options.User.RequireUniqueEmail = true`. Default password policies remain unchanged. There are no global role services or role tables in this model; future Workspace Admin/Member roles are unrelated to global Identity roles.
+`AddInfrastructure` registers Identity Core with EF stores and sets `options.User.RequireUniqueEmail = true`. Default password policies remain unchanged. There are no global role services or role tables in this model; Workspace Admin/Member roles are Domain concepts unrelated to global Identity roles.
 
 AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens are mapped in the model and exist physically in the local SQL Server Kwestie database after the manual application of AddIdentity. AspNetUserTokens is not used for application refresh tokens; those use the new RefreshTokens model below. Identity cookie authentication, external providers, and default token providers are not registered. API owns the HTTP endpoints and refresh-token cookie; these are not Infrastructure responsibilities. Email confirmation and password recovery remain unimplemented.
 
@@ -42,7 +42,7 @@ A real SQL Server test creates a unique user through the existing Register adapt
 
 `Authentication/JwtAccessTokenGenerator` implements Application's `IAccessTokenGenerator` using Microsoft IdentityModel and HMAC SHA-256 (HS256). Its only application claims are `sub` (the user's Guid) and `jti` (a new Guid for each token). Standard `iss`, `aud`, `iat`, `nbf`, and `exp` fields supply issuer, audience, issue/valid time, and expiration. Tokens contain no email, roles, workspace, credentials, or configuration secrets.
 
-The generator uses TimeProvider and rounds UTC time to whole seconds so the returned ExpiresAtUtc exactly matches the encoded expiration. `AddJwtAuthentication(configuration)` separately registers the generator, validated JwtOptions, and JWT Bearer authentication. It uses TryAddSingleton for TimeProvider.System so a caller-provided clock is preserved. AddInfrastructure(connectionString) remains unchanged and requires no JWT configuration.
+The generator uses TimeProvider and rounds UTC time to whole seconds so the returned ExpiresAtUtc exactly matches the encoded expiration. `AddJwtAuthentication(configuration)` separately registers the generator, validated JwtOptions, and JWT Bearer authentication. It uses TryAddSingleton for TimeProvider.System so a caller-provided clock is preserved. AddInfrastructure(connectionString) requires no JWT configuration.
 
 API explicitly calls AddJwtAuthentication and runs UseAuthentication before UseAuthorization. Bearer validation uses the same JwtOptions as issuance and requires a signature with HS256, the configured issuer/audience, and a valid lifetime with zero clock skew. MapInboundClaims is false and NameClaimType is sub. Tokens are not saved in authentication properties and detailed authentication errors are not exposed. API exposes anonymous Register/Login/Refresh/Logout endpoints; no protected endpoints or Authorize attributes are added.
 
@@ -78,6 +78,16 @@ A separate repository integration test now verifies a real SQL Server round trip
 
 `KwestieRepository` implements Application's `IKwestieRepository`. `AddAsync` tracks the entity and awaits `SaveChangesAsync` with the caller's cancellation token. There is no separate UnitOfWork because the current use case does not require one.
 
+## Workspace Persistence
+
+`WorkspaceConfiguration` maps `Workspaces` with an Application-generated Guid primary key (`ValueGeneratedNever`), required Name without a maximum length, and required CreatedAt. `WorkspaceMemberConfiguration` maps required WorkspaceId, UserId, numeric Role, JoinedAt, and IsActive to `WorkspaceMembers`. Its composite primary key `(WorkspaceId, UserId)` allows only one membership per user within a workspace; UserId has an FK index.
+
+Memberships reference `Workspaces.Id` with cascade deletion and `AspNetUsers.Id` through ApplicationUser with `DeleteBehavior.NoAction`. SQL Server's NO ACTION prevents physically deleting a user while memberships exist, without silently deleting those memberships. Deleting a workspace cascades only to its memberships. These mappings add no navigation properties or Identity/EF dependencies to Domain. Kwesties mapping and repository are unchanged, including the absence of a Kwesties.WorkspaceId FK.
+
+`WorkspaceRepository` implements `IWorkspaceRepository` and is scoped in AddInfrastructure. AddAsync tracks both the Workspace and initial membership in the same context and awaits one SaveChangesAsync with the caller's cancellation token. EF Core's normal transaction makes the pair atomic; no manual transaction or separate UnitOfWork is added.
+
+Database-free tests cover both mappings, constructor materialization (including restoring stored IsActive), repository DI/lifetime, one awaited save, cancellation forwarding, and model/snapshot agreement. SQL tests passed against the local database with AddWorkspaces manually applied and shared User Secrets. They verify separate-context round trips, user deletion rejection, workspace membership cascade cleanup, and rollback of a workspace insert when the membership references a nonexistent user. Tests remove only their own temporary data and never apply migrations.
+
 ## Configuration
 
 The API reads `ConnectionStrings:Kwestie` through `IConfiguration` and fails at startup with a clear message if it is missing or blank. Infrastructure receives the string from the composition root; it contains no environment-specific connection values.
@@ -110,14 +120,18 @@ Migrations belong to Infrastructure. `20260924234735_InitialCreate` exists and w
 
 `20260925192607_AddIdentity` exists and was applied manually to the local `Kwestie` database. It is recorded in `__EFMigrationsHistory` and created AspNetUsers, AspNetUserClaims, AspNetUserLogins, and AspNetUserTokens in the same database used by `KwestieDbContext`.
 
-`20260929220522_AddRefreshTokens` is applied to the local Kwestie database. It adds only RefreshTokens, its columns, primary key, cascading user FK, unique TokenHash index, UserId index, and rowversion. The snapshot includes that model; existing Kwesties and Identity schema and older migrations are unchanged. The local database update check confirmed that the database was already up to date, with no pending migrations. Login with refresh issuance and Refresh have passed their real SQL integration tests.
+`20260929220522_AddRefreshTokens` is applied to the local Kwestie database. It adds only RefreshTokens, its columns, primary key, cascading user FK, unique TokenHash index, UserId index, and rowversion. Login with refresh issuance and Refresh have passed their real SQL integration tests.
 
-Database-free checks verify that EF's model matches the snapshot. HasPendingModelChanges = false describes model/snapshot agreement, not migration application to SQL Server. SQL tests requiring RefreshTokens have passed. The full suite passed on 2026-09-30: 106 tests, 106 passed, 0 failed, 0 skipped. No test creates a database or applies migrations automatically.
+`20261007152213_AddWorkspaces` was applied manually to the local Kwestie database. It creates only Workspaces, WorkspaceMembers, their primary keys, the cascading workspace FK, the NO ACTION user FK, and the UserId index. The snapshot includes both workspace entities; older migrations and the Kwesties, Identity, and RefreshTokens mappings are unchanged.
+
+Database-free checks verify that EF's model matches the snapshot. HasPendingModelChanges = false describes model/snapshot agreement, not migration application to SQL Server. With AddWorkspaces manually applied, build and the full suite passed on 2026-10-07: 137 tests, 137 passed, 0 failed, 0 skipped, including real Workspace persistence and atomicity. No test creates a database or applies migrations automatically.
 
 EF Core Design is a private tooling dependency in Infrastructure and the API startup project, supporting the Infrastructure target/API startup workflow. Future migration generation and application remain manual steps after model review and local User Secrets configuration.
 
 ## Current Implementation Scope
 
 Implemented: SQL Server context and mapping, repository insertion with saving, dependency injection registration, shared API/test User Secrets configuration, InitialCreate, AddIdentity, and AddRefreshTokens applied locally, a verified real SQL Server repository round-trip test, and the Identity infrastructure base with Guid users and EF stores. Model, materialization, and Identity registration tests are available without a database.
+
+Workspace persistence mappings, DbSets, the scoped WorkspaceRepository, and persistence tests are implemented. AddWorkspaces was applied manually locally, and real Workspace SQL persistence/atomicity has been validated. Workspace handler registration in API, HTTP endpoints, UI, and membership management remain pending.
 
 Register, credential validation, JWT, refresh issuance/rotation, Login's two-token result, and the Refresh and Logout use cases have real SQL Server coverage. With AddRefreshTokens applied locally, the complete Login + Refresh + JWT flow has passed. API is configured for Bearer validation and exposes Register/Login/Refresh/Logout endpoints with refresh-cookie handling. Workspace/membership checks and Angular authentication UI remain pending. Authentication is not complete.

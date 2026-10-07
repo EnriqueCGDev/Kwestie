@@ -1,4 +1,5 @@
 using Kwestie.Application.Kwesties;
+using Kwestie.Application.Workspaces;
 using Kwestie.Application.Authentication.Register;
 using Kwestie.Application.Authentication.Login;
 using Kwestie.Infrastructure.Identity;
@@ -16,6 +17,7 @@ public static class DependencyInjection
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         services.AddDbContext<KwestieDbContext>(options => options.UseSqlServer(connectionString));
         services.AddScoped<IKwestieRepository, KwestieRepository>();
+        services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
         services.AddIdentityCore<ApplicationUser>(options => options.User.RequireUniqueEmail = true)
             .AddEntityFrameworkStores<KwestieDbContext>();
         services.AddScoped<IUserRegistration, UserRegistration>();

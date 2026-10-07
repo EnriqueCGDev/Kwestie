@@ -257,7 +257,9 @@ Member = 2
 
 The Create Workspace use case creates an active Admin membership for the creating user, with the same WorkspaceId and `JoinedAt` equal to the workspace's `CreatedAt`.
 
-Role changes, deactivation/reactivation, member removal, and ownership transfer are not implemented; their rules remain undefined. Categories and Workspace persistence are also not implemented.
+Workspace persistence is implemented in Infrastructure, and `20261007152213_AddWorkspaces` was applied manually to the local Kwestie database. Real SQL Server tests verify the Workspace/membership round trip, deletion behavior, and atomic persistence.
+
+Categories, Workspace API/UI, and membership management remain pending. Role changes, deactivation/reactivation, member removal, and ownership transfer are not implemented; their rules remain undefined.
 
 ## Categories
 
