@@ -12,4 +12,7 @@ public interface IWorkspaceRepository
         Workspace workspace,
         WorkspaceMember initialMember,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Workspace>> ListForUserAsync(
+        Guid userId, CancellationToken cancellationToken = default);
 }

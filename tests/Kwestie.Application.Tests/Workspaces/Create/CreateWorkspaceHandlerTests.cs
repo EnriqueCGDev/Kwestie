@@ -118,6 +118,9 @@ public class CreateWorkspaceHandlerTests
             ReceivedCancellationToken = cancellationToken;
             return Completion;
         }
+
+        public Task<IReadOnlyList<Workspace>> ListForUserAsync(
+            Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
