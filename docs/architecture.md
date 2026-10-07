@@ -43,6 +43,8 @@ Application may define contracts that it needs from external systems.
 
 The first implemented use case is Create Kwestie. Its handler creates the Domain entity using a generated ID and .NET `TimeProvider`, awaits `IKwestieRepository.AddAsync`, and returns the entity ID. Infrastructure implements and registers that repository with an EF Core SQL Server context. There is no Create Kwestie API endpoint or handler registration yet.
 
+Create Workspace is also implemented in Application. Its handler creates a Domain Workspace and the creator's active Admin membership using one generated workspace ID and one TimeProvider timestamp. `IWorkspaceRepository.AddAsync` accepts both entities and requires atomic persistence before completion. This contract has no Infrastructure implementation, DI registration, or HTTP endpoint yet; no separate UnitOfWork is needed for this base use case.
+
 Current contract and implementation:
 
 ```text
@@ -145,6 +147,8 @@ will be orchestrated by Application using information obtained through abstracti
 
 Domain still owns intrinsic rules that can be enforced using the entity's own state.
 
+Domain now contains Workspace, WorkspaceMember, and workspace-specific Admin/Member roles. Creation validates identifiers, the workspace name, and the membership role. Membership changes and ownership rules remain undefined and unimplemented; Create Kwestie still has no workspace authorization checks.
+
 ## Monorepo
 
 Kwestie uses a monorepo containing both frontend and backend.
@@ -203,7 +207,7 @@ Infrastructure issues HS256 JWT access tokens and configures Bearer validation t
 
 RefreshSessionHandler rotates the supplied token through IRefreshTokenService and generates a new access token for the user recovered from persistence, never a user ID supplied by the caller. Infrastructure stores only SHA-256 hashes of random refresh tokens, uses rowversion to prevent concurrent reuse, and saves revocation plus replacement atomically. Domain is unchanged. Missing, malformed, expired, revoked, and concurrently consumed tokens have the same public failure result. API exposes POST /api/auth/register, POST /api/auth/login, POST /api/auth/refresh, and POST /api/auth/logout. External providers remain unimplemented.
 
-The context uses IdentityUserContext<ApplicationUser, Guid> without global roles. Future Workspace Admin/Member roles are separate domain concepts, not global Identity roles. No roles are registered or seeded. AddIdentity was applied manually locally. 20260929220522_AddRefreshTokens is also applied locally, and the complete Login + Refresh + JWT flow has passed real SQL tests. Angular has Login/Register UI, one startup refresh attempt, a Bearer interceptor, and a guarded minimal `/app` route with Logout. Workspace functionality and automatic refresh after a 401 remain pending, so authentication is not complete. CORS is not configured.
+The context uses IdentityUserContext<ApplicationUser, Guid> without global roles. Workspace Admin/Member roles are implemented as Domain concepts, not global Identity roles. No Identity roles are registered or seeded. AddIdentity was applied manually locally. 20260929220522_AddRefreshTokens is also applied locally, and the complete Login + Refresh + JWT flow has passed real SQL tests. Angular has Login/Register UI, one startup refresh attempt, a Bearer interceptor, and a guarded minimal `/app` route with Logout. Workspace persistence/HTTP/UI functionality and automatic refresh after a 401 remain pending, so authentication is not complete. CORS is not configured.
 
 OAuth 2.0 / OpenID Connect may be introduced later if Kwestie needs external identity providers, enterprise SSO, or third-party clients.
 
@@ -242,6 +246,8 @@ The solution currently contains:
 At the current stage, meaningful automated coverage exists in all three test projects.
 
 Application tests cover Create Kwestie using a small repository fake and a controlled TimeProvider, and Register, Login, and Refresh using small service fakes without mocking libraries. They verify both tokens/expirations, exact user IDs, cancellation forwarding, result invariants, and no issuance on invalid credentials or invalid refresh.
+
+Domain tests also cover Workspace and WorkspaceMember creation invariants. Application tests cover Create Workspace using a recording repository fake and a fixed TimeProvider, including the active Admin membership, shared ID/timestamp, cancellation forwarding, awaiting persistence, and no persistence on Domain errors. This coverage requires no database.
 
 IntegrationTests contains:
 

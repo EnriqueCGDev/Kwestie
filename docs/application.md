@@ -40,6 +40,12 @@ Kwesties/
     ├── CreateKwestieCommand.cs
     ├── CreateKwestieHandler.cs
     └── CreateKwestieResult.cs
+Workspaces/
+├── IWorkspaceRepository.cs
+└── Create/
+    ├── CreateWorkspaceCommand.cs
+    ├── CreateWorkspaceHandler.cs
+    └── CreateWorkspaceResult.cs
 ```
 
 ## Command
@@ -74,6 +80,14 @@ The caller's cancellation token is passed to `AddAsync`. `DomainException` propa
 ## Time
 
 The handler uses .NET `TimeProvider` rather than reading the real clock directly. Tests supply a small subclass returning a fixed timestamp; no custom clock interface or additional package is needed.
+
+## Create Workspace
+
+`CreateWorkspaceCommand` contains only `Name` and `UserId`. `CreateWorkspaceHandler` generates the workspace ID with `Guid.NewGuid()` and obtains one timestamp through `TimeProvider.GetUtcNow()`. It constructs a `Workspace` and an active `WorkspaceMember` for that user with role `Admin`, the same WorkspaceId, and `JoinedAt` equal to `CreatedAt`.
+
+The handler awaits `IWorkspaceRepository.AddAsync(workspace, initialMember, cancellationToken)` before returning `CreateWorkspaceResult`, which contains `WorkspaceId`. This Application-owned contract requires the workspace and initial membership to be persisted atomically, with completion only after both are saved. No separate saving or UnitOfWork abstraction is introduced. Infrastructure has no implementation or registration for this contract yet, and there is no Workspace endpoint.
+
+Intrinsic validation remains in Domain. `DomainException` propagates unchanged, and invalid names or empty user IDs cause no persistence call. The user ID is an input to this base use case; account existence and HTTP authentication are not checked or integrated in this block.
 
 ## Register
 
@@ -118,6 +132,8 @@ Checks requiring other data or coordination belong to Application orchestration.
 ## Current Implementation Scope
 
 Implemented: `CreateKwestieCommand`, `CreateKwestieHandler`, `CreateKwestieResult`, `IKwestieRepository`, and feature tests in `Kwestie.Application.Tests/Kwesties/Create`.
+
+Create Workspace is implemented through `CreateWorkspaceCommand`, `CreateWorkspaceHandler`, `CreateWorkspaceResult`, and `IWorkspaceRepository`. Tests use a recording fake and fixed TimeProvider to verify the Workspace/Admin membership pair, shared identifiers/timestamps, cancellation forwarding, waiting for persistence, persistence failure propagation, and Domain rejection without a repository call. Concrete persistence, DI registration, endpoints, membership management, and authorization of Create Kwestie remain pending.
 
 Register is also implemented through RegisterUserCommand, RegisterUserHandler, RegisterUserResult, and IUserRegistration. Unit tests use a small fake to verify input/cancellation forwarding and success/error results; a separate Infrastructure integration test verifies real Identity user persistence.
 

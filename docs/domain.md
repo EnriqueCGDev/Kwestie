@@ -218,7 +218,7 @@ Current behavior:
 
 Chronological rules such as rejecting a transition timestamp earlier than the previous change have not yet been defined.
 
-Application may later obtain the current time through a time abstraction.
+Application obtains creation timestamps through .NET `TimeProvider`; Domain receives them from the caller.
 
 ## Resolved vs Closed
 
@@ -236,28 +236,28 @@ Rules describing which user is allowed to close a Kwestie belong to Application/
 
 ## Workspaces
 
-A `Workspace` represents the boundary in which Kwesties, members, and categories exist.
+A `Workspace` represents the boundary in which Kwesties, members, and future categories exist.
 
-Planned concepts include:
+`Workspace`, `WorkspaceMember`, and `WorkspaceRole` are implemented in Domain.
 
-```text
-Workspace
-WorkspaceMember
-WorkspaceRole
-```
+`Workspace` has read-only `Id`, `Name`, and `CreatedAt` properties. Its constructor rejects an empty Guid ID and null, empty, or whitespace-only names with `DomainException`. It stores `Name` using `Trim()` and receives `CreatedAt` from outside Domain.
+
+`WorkspaceMember` has read-only `WorkspaceId`, `UserId`, `Role`, `JoinedAt`, and `IsActive` properties. Its constructor rejects empty workspace/user IDs and undefined roles with `DomainException`. `JoinedAt` is supplied by the caller, and a new membership always starts active.
 
 A user may belong to multiple workspaces and may have a different role in each workspace.
 
 Workspace roles are therefore not modeled as global ASP.NET Core Identity roles.
 
-Initial roles are expected to be:
+Current roles are:
 
 ```text
-Admin
-Member
+Admin = 1
+Member = 2
 ```
 
-These concepts are planned and are not implemented yet.
+The Create Workspace use case creates an active Admin membership for the creating user, with the same WorkspaceId and `JoinedAt` equal to the workspace's `CreatedAt`.
+
+Role changes, deactivation/reactivation, member removal, and ownership transfer are not implemented; their rules remain undefined. Categories and Workspace persistence are also not implemented.
 
 ## Categories
 
@@ -326,11 +326,14 @@ InProgress -> Resolved
 Resolved -> Closed
 DomainException on invalid transitions
 Unit tests for creation invariants and current lifecycle behavior
+Workspace creation invariants and trimmed Name
+WorkspaceMember creation invariants and initially active membership
+WorkspaceRole (Admin and Member)
 ```
 
 Assignment of `Number` during persistence and the derived visible reference remain unimplemented.
 
-Persistence, repositories, authentication, workspace behavior, assignment, comments, history, and reopening remain outside the current implementation milestone.
+Persistence, repositories, and authentication remain outside Domain. Workspace membership changes, assignment, comments, history, and reopening remain unimplemented.
 
 ## Working Agreement
 
