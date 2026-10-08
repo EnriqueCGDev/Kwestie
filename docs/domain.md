@@ -259,7 +259,9 @@ The Create Workspace use case creates an active Admin membership for the creatin
 
 Workspace persistence is implemented in Infrastructure, and `20261007152213_AddWorkspaces` was applied manually to the local Kwestie database. Real SQL Server tests verify the Workspace/membership round trip, deletion behavior, and atomic persistence.
 
-Categories, Workspace API/UI, and membership management remain pending. Role changes, deactivation/reactivation, member removal, and ownership transfer are not implemented; their rules remain undefined.
+Creating a Kwestie requires an existing Workspace and an active membership for the creator. Both Admin and Member may create Kwesties; no additional role restriction applies. Application enforces this rule through its repository contract before persistence, while the Kwestie constructor retains its intrinsic invariants. Access rejection is represented in Application, not by DomainException.
+
+Workspace create/list API and UI are implemented. Categories, Workspace navigation, membership management, and the Create Kwestie HTTP endpoint remain pending. Role changes, deactivation/reactivation, member removal, and ownership transfer are not implemented; their rules remain undefined.
 
 ## Categories
 

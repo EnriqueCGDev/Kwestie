@@ -51,7 +51,7 @@ Implemented so far:
 - Create Kwestie application use case and its unit tests
 - Workspace/WorkspaceMember models, Create Workspace with initial Admin membership, EF SQL Server mappings, scoped repository, and persistence tests; AddWorkspaces is applied manually locally and real SQL persistence/atomicity is validated; protected POST/GET /api/workspaces are implemented; listing/creation UI is implemented; Workspace navigation and membership management remain pending
 
-Create Kwestie has an Infrastructure repository implementation using EF Core and SQL Server. `InitialCreate` exists and was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, generated Number, retrieval, and cleanup. There is still no Create Kwestie API endpoint; workspace and membership checks required before exposing this use case are not implemented.
+Create Kwestie has an Infrastructure repository implementation using EF Core and SQL Server. `InitialCreate` exists and was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, generated Number, retrieval, and cleanup. Application now requires an existing Workspace and an active creator membership, allowing both Admin and Member. There is still no Create Kwestie API endpoint; Categories and their compatibility checks are not implemented.
 
 Full authentication is not implemented yet. Workspace navigation, automatic refresh after a 401, assignment, comments, history, search, and dashboard functionality remain pending.
 

@@ -41,7 +41,7 @@ Application depends on Domain.
 
 Application may define contracts that it needs from external systems.
 
-The first implemented use case is Create Kwestie. Its handler creates the Domain entity using a generated ID and .NET `TimeProvider`, awaits `IKwestieRepository.AddAsync`, and returns the entity ID. Infrastructure implements and registers that repository with an EF Core SQL Server context. There is no Create Kwestie API endpoint or handler registration yet.
+The first implemented use case is Create Kwestie. Its handler creates the Domain entity using a generated ID and .NET `TimeProvider`, awaits the existing workspace repository's active-membership check, then awaits `IKwestieRepository.AddAsync` and returns the entity ID. Missing workspaces or inactive/missing creator memberships raise an Application-specific CreateKwestieAccessDeniedException without persisting; DomainException remains reserved for intrinsic invariants. Infrastructure implements and registers these repositories with an EF Core SQL Server context. There is no Create Kwestie API endpoint or handler registration yet.
 
 Create Workspace is also implemented in Application. Its handler creates a Domain Workspace and the creator's active Admin membership using one generated workspace ID and one TimeProvider timestamp. `IWorkspaceRepository.AddAsync` accepts both entities and requires atomic persistence before completion. Infrastructure's scoped WorkspaceRepository implements it with one awaited SaveChangesAsync and EF's normal transaction. ListWorkspacesHandler awaits the same repository's ListForUserAsync and returns Application-owned summaries; no separate query abstraction or UnitOfWork is needed. Both handlers are scoped in API and exposed by protected POST/GET /api/workspaces.
 
@@ -143,11 +143,11 @@ Rules that require checking other data, such as:
 - whether a category belongs to the same workspace
 - whether an assignee is eligible for assignment
 
-will be orchestrated by Application using information obtained through abstractions.
+are orchestrated by Application using information obtained through abstractions. Active creator membership is implemented for Create Kwestie; Category and assignment checks remain future work.
 
 Domain still owns intrinsic rules that can be enforced using the entity's own state.
 
-Domain now contains Workspace, WorkspaceMember, and workspace-specific Admin/Member roles. Creation validates identifiers, the workspace name, and the membership role. Membership changes and ownership rules remain undefined and unimplemented; Create Kwestie still has no workspace authorization checks.
+Domain now contains Workspace, WorkspaceMember, and workspace-specific Admin/Member roles. Creation validates identifiers, the workspace name, and the membership role. Create Kwestie allows either role with an active membership in an existing workspace. Infrastructure checks both IDs and IsActive with one AnyAsync, relying on the membership FK for workspace existence and forwarding cancellation without changing data. No authorization framework or separate abstraction is added. Membership changes and ownership rules remain undefined and unimplemented.
 
 ## Monorepo
 
@@ -239,7 +239,7 @@ Normal resource operations may use standard REST endpoints, while explicit domai
 
 AuthenticationController adapts HTTP requests to Application commands and maps results to API-owned DTOs. Register, Login, Refresh, and Logout handlers are registered as scoped services in Program.cs. The controller owns refresh-cookie handling; Application and Infrastructure have no cookie responsibilities. Access tokens are returned as JSON for Bearer use. Raw refresh tokens appear only in an HttpOnly, Secure, SameSite=Strict cookie scoped to /api/auth, with no Domain and the returned refresh expiration. Failed refresh deletes that cookie and returns a generic 401. Anonymous Logout revokes only the supplied active refresh token and deletes the same cookie, returning 204 without revealing token state; it does not require a valid access token. See [API](api.md) for the implemented contracts.
 
-WorkspacesController requires Bearer authorization and obtains user identity exclusively from a valid, non-empty Guid sub claim. Its create request accepts only Name, rejecting unknown JSON fields; the creator cannot be supplied by the client. POST returns 201 without an invented Location and maps Domain validation failures to 400. GET returns only active memberships for the JWT user, ordered by CreatedAt then WorkspaceId ascending. This is query behavior, not a Domain rule. Infrastructure performs the asynchronous no-tracking query; HTTP DTOs remain in API. Workspace listing/creation UI is implemented; Workspace navigation, membership management, and authorization of Create Kwestie remain pending. No schema changes are needed.
+WorkspacesController requires Bearer authorization and obtains user identity exclusively from a valid, non-empty Guid sub claim. Its create request accepts only Name, rejecting unknown JSON fields; the creator cannot be supplied by the client. POST returns 201 without an invented Location and maps Domain validation failures to 400. GET returns only active memberships for the JWT user, ordered by CreatedAt then WorkspaceId ascending. This is query behavior, not a Domain rule. Infrastructure performs the asynchronous no-tracking query; HTTP DTOs remain in API. Workspace listing/creation UI is implemented; Workspace navigation, membership management, and the Create Kwestie HTTP endpoint remain pending. No schema changes are needed.
 
 ## Testing
 
@@ -251,7 +251,7 @@ The solution currently contains:
 
 At the current stage, meaningful automated coverage exists in all three test projects.
 
-Application tests cover Create Kwestie using a small repository fake and a controlled TimeProvider, and Register, Login, and Refresh using small service fakes without mocking libraries. They verify both tokens/expirations, exact user IDs, cancellation forwarding, result invariants, and no issuance on invalid credentials or invalid refresh.
+Application tests cover Create Kwestie using small repository fakes and a controlled TimeProvider: active Admin/Member creation, rejected missing workspaces or inactive/missing memberships without saving, forwarding cancellation, awaiting the access check and saving, and Domain/query failure propagation. SQL Server coverage verifies the membership query's identifier/activity filtering, both roles, no tracking or writes, and cancellation with isolated fixture cleanup. Register, Login, and Refresh use small service fakes without mocking libraries to verify both tokens/expirations, exact user IDs, cancellation forwarding, result invariants, and no issuance on invalid credentials or invalid refresh.
 
 Domain tests also cover Workspace and WorkspaceMember creation invariants. Application tests cover Create Workspace using a recording repository fake and a fixed TimeProvider, including the active Admin membership, shared ID/timestamp, cancellation forwarding, awaiting persistence, and no persistence on Domain errors. This coverage requires no database.
 

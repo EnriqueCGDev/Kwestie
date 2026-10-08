@@ -8,6 +8,15 @@ public sealed class WorkspaceRepository(KwestieDbContext context) : IWorkspaceRe
 {
     private readonly KwestieDbContext _context = context;
 
+    public Task<bool> HasActiveMembershipAsync(
+        Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        // The membership FK guarantees that its workspace exists; no second query is needed.
+        return _context.WorkspaceMembers.AnyAsync(
+            member => member.WorkspaceId == workspaceId && member.UserId == userId && member.IsActive,
+            cancellationToken);
+    }
+
     public async Task AddAsync(
         Workspace workspace,
         WorkspaceMember initialMember,

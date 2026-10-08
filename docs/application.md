@@ -38,6 +38,7 @@ Kwesties/
 ├── IKwestieRepository.cs
 └── Create/
     ├── CreateKwestieCommand.cs
+    ├── CreateKwestieAccessDeniedException.cs
     ├── CreateKwestieHandler.cs
     └── CreateKwestieResult.cs
 Workspaces/
@@ -58,7 +59,7 @@ Workspaces/
 
 ## Handler
 
-`CreateKwestieHandler` receives `IKwestieRepository` and .NET `TimeProvider` through its constructor. `HandleAsync` performs this flow:
+`CreateKwestieHandler` receives `IKwestieRepository`, `IWorkspaceRepository`, and .NET `TimeProvider` through its constructor. `HandleAsync` performs this flow:
 
 ```text
 Command
@@ -67,11 +68,13 @@ Handler
     ├── generates Id with Guid.NewGuid()
     ├── obtains CreatedAt from TimeProvider.GetUtcNow()
     ├── constructs the Domain Kwestie
+    ├── awaits IWorkspaceRepository.HasActiveMembershipAsync
+    ├── rejects access if the workspace or active creator membership is missing
     ├── awaits IKwestieRepository.AddAsync
     └── returns Result
 ```
 
-The caller's cancellation token is passed to `AddAsync`. `DomainException` propagates unchanged; when construction fails, the repository is not called.
+The caller's cancellation token is passed to both the access check and `AddAsync`. `DomainException` propagates unchanged; when construction fails, neither repository is called. For valid Domain input, the handler waits for the access check before persisting. Both Admin and Member can create Kwesties when their membership is active. Missing workspaces, users outside the workspace, and inactive memberships all raise `CreateKwestieAccessDeniedException`, an Application exception distinct from Domain invariants, without calling `IKwestieRepository.AddAsync`. Query failures propagate without persisting.
 
 ## Result
 
@@ -80,6 +83,8 @@ The caller's cancellation token is passed to `AddAsync`. `DomainException` propa
 ## Application Abstractions
 
 `IKwestieRepository` lives in Application and represents the current use case's external dependency. Its only operation is `Task AddAsync(Kwestie kwestie, CancellationToken cancellationToken = default)`. Infrastructure implements it with EF Core, including `SaveChangesAsync` within `AddAsync`. Application has no separate saving or unit-of-work abstraction.
+
+`IWorkspaceRepository.HasActiveMembershipAsync(workspaceId, userId, cancellationToken)` returns true only for an active membership in an existing workspace, regardless of role. Infrastructure uses a single read-only AnyAsync over WorkspaceMembers, matching both identifiers and IsActive; the workspace FK guarantees existence without another query.
 
 ## Time
 
@@ -137,18 +142,18 @@ LogoutSessionCommand contains only the nullable refresh token. LogoutSessionHand
 
 Domain enforces intrinsic rules using the entity's state and input data. Application leaves those checks to the constructor without duplicating, catching, or translating them.
 
-Checks requiring other data or coordination belong to Application orchestration. For Create Kwestie, workspace existence, creator membership, category/workspace compatibility, active membership, and authorization checks remain unimplemented. Create Kwestie must not be exposed through an API endpoint until the required workspace and membership checks exist.
+Checks requiring other data or coordination belong to Application orchestration. Create Kwestie now requires an existing workspace and an active creator membership. Category/workspace compatibility is not checked because Categories are not implemented. The current command retains optional CategoryId and its Domain invariant; a future HTTP create contract must not accept CategoryId until Categories are implemented. No Create Kwestie HTTP endpoint is exposed yet.
 
 ## Current Implementation Scope
 
 Implemented: `CreateKwestieCommand`, `CreateKwestieHandler`, `CreateKwestieResult`, `IKwestieRepository`, and feature tests in `Kwestie.Application.Tests/Kwesties/Create`.
 
-Create Workspace is implemented through `CreateWorkspaceCommand`, `CreateWorkspaceHandler`, `CreateWorkspaceResult`, and `IWorkspaceRepository`. Tests use a recording fake and fixed TimeProvider to verify the Workspace/Admin membership pair, shared identifiers/timestamps, cancellation forwarding, waiting for persistence, persistence failure propagation, and Domain rejection without a repository call. Concrete persistence and repository DI registration are implemented in Infrastructure; AddWorkspaces was applied manually and Workspace SQL persistence/atomicity is validated. Create/List handlers are registered in API and exposed through protected POST/GET /api/workspaces. Workspace UI, membership management, and authorization of Create Kwestie remain pending.
+Create Workspace is implemented through `CreateWorkspaceCommand`, `CreateWorkspaceHandler`, `CreateWorkspaceResult`, and `IWorkspaceRepository`. Tests use a recording fake and fixed TimeProvider to verify the Workspace/Admin membership pair, shared identifiers/timestamps, cancellation forwarding, waiting for persistence, persistence failure propagation, and Domain rejection without a repository call. Concrete persistence and repository DI registration are implemented in Infrastructure; AddWorkspaces was applied manually and Workspace SQL persistence/atomicity is validated. Create/List handlers are registered in API and exposed through protected POST/GET /api/workspaces, with listing/creation UI implemented. Membership management and the Create Kwestie HTTP endpoint remain pending.
 
 Register is also implemented through RegisterUserCommand, RegisterUserHandler, RegisterUserResult, and IUserRegistration. Unit tests use a small fake to verify input/cancellation forwarding and success/error results; a separate Infrastructure integration test verifies real Identity user persistence.
 
 Logout unit tests verify token/cancellation forwarding and waiting for revocation. Login and Refresh unit tests use small fakes to verify input/cancellation forwarding, exact user IDs, both tokens and expirations, and no generation on rejection. Result tests reject empty IDs, blank tokens, and invalid UTC expiration values. IntegrationTests validates credential checking and the full Login + Refresh + JWT flow against SQL Server with cleanup in finally. With 20260929220522_AddRefreshTokens applied locally, SQL tests have passed for issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. The full suite passed on 2026-10-07 with AddWorkspaces also applied: 149 tests, 149 passed, 0 failed, 0 skipped. Database-free tests cover JWT, mapping, DI, configuration, and malformed refresh rejection.
 
-Tests use a local recording repository fake and a fixed time provider. They cover the created entity and result, generated ID, timestamps, unassigned number, cancellation-token forwarding, waiting for the repository, and domain rejection without a repository call.
+Create Kwestie tests use local recording repository fakes and a fixed time provider. They cover the created entity and result, generated ID, timestamps, unassigned number, cancellation forwarding to both repositories, active Admin/Member access, each access rejection without persistence, awaiting validation and saving, query failure propagation, and Domain rejection without a repository call.
 
-Infrastructure provides persistence and generated-number mapping, with context and repository DI registration, InitialCreate, and a verified real repository round trip against the existing local database. For Create Kwestie, visible references, cross-entity checks, authorization, handler registration, and an API endpoint remain pending.
+Infrastructure provides persistence and generated-number mapping, with context and repository DI registration, InitialCreate, and a verified real repository round trip against the existing local database. Workspace/active-membership validation for Create Kwestie is implemented. Visible references, Categories and their compatibility checks, handler registration, and a Create Kwestie API endpoint remain pending.

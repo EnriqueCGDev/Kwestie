@@ -121,6 +121,9 @@ public class CreateWorkspaceHandlerTests
 
         public Task<IReadOnlyList<Workspace>> ListForUserAsync(
             Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<bool> HasActiveMembershipAsync(
+            Guid workspaceId, Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

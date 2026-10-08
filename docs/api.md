@@ -89,4 +89,4 @@ Requires Bearer authentication. Returns **200 OK** with only the workspaces wher
 ]
 ```
 
-Results are ordered by CreatedAt ascending, then WorkspaceId ascending. This is query behavior, not a Domain rule. No user filter is accepted from the client. Workspace listing/creation UI is implemented. Workspace navigation, membership management, and Create Kwestie authorization/endpoints remain pending.
+Results are ordered by CreatedAt ascending, then WorkspaceId ascending. This is query behavior, not a Domain rule. No user filter is accepted from the client. Workspace listing/creation UI is implemented. Application validates active creator membership for Create Kwestie, but its HTTP endpoint remains pending, alongside Workspace navigation and membership management.

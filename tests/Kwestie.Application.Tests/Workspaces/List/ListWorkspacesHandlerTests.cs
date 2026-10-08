@@ -62,5 +62,8 @@ public class ListWorkspacesHandlerTests
 
         public Task AddAsync(Workspace workspace, WorkspaceMember initialMember,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<bool> HasActiveMembershipAsync(
+            Guid workspaceId, Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }
