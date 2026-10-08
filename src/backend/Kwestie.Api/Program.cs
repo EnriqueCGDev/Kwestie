@@ -5,6 +5,7 @@ using Kwestie.Application.Authentication.Refresh;
 using Kwestie.Application.Authentication.Logout;
 using Kwestie.Application.Workspaces.Create;
 using Kwestie.Application.Workspaces.List;
+using Kwestie.Application.Workspaces.Get;
 using Kwestie.Application.Kwesties.Create;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,6 +25,7 @@ builder.Services.AddScoped<RefreshSessionHandler>();
 builder.Services.AddScoped<LogoutSessionHandler>();
 builder.Services.AddScoped<CreateWorkspaceHandler>();
 builder.Services.AddScoped<ListWorkspacesHandler>();
+builder.Services.AddScoped<GetWorkspaceHandler>();
 builder.Services.AddScoped<CreateKwestieHandler>();
 
 // Add services to the container.

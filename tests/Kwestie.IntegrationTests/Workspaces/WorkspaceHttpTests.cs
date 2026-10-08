@@ -26,12 +26,14 @@ public sealed class WorkspaceHttpTests(AuthenticationApiFactory factory)
     private readonly AuthenticationApiFactory _factory = factory;
 
     [Theory]
-    [InlineData("GET")]
-    [InlineData("POST")]
-    public async Task Endpoints_WithoutBearer_ReturnUnauthorized(string method)
+    [InlineData("GET", false)]
+    [InlineData("POST", false)]
+    [InlineData("GET", true)]
+    public async Task Endpoints_WithoutBearer_ReturnUnauthorized(string method, bool individual)
     {
         using var client = _factory.CreateHttpsClient();
-        using var request = new HttpRequestMessage(new HttpMethod(method), "/api/workspaces");
+        var path = individual ? $"/api/workspaces/{Guid.NewGuid()}" : "/api/workspaces";
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
         if (method == "POST")
             request.Content = JsonContent.Create(new CreateWorkspaceRequest("Support"));
 
@@ -51,9 +53,126 @@ public sealed class WorkspaceHttpTests(AuthenticationApiFactory factory)
 
         using var get = await client.GetAsync("/api/workspaces");
         using var post = await client.PostAsJsonAsync("/api/workspaces", new CreateWorkspaceRequest("Support"));
+        using var detail = await client.GetAsync($"/api/workspaces/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.Unauthorized, get.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, post.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, detail.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_WithInvalidBearer_ReturnsUnauthorized()
+    {
+        using var client = _factory.CreateHttpsClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "not-a-jwt");
+
+        using var response = await client.GetAsync($"/api/workspaces/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(WorkspaceRole.Admin)]
+    [InlineData(WorkspaceRole.Member)]
+    public async Task Get_ActiveMember_ReturnsOnlyRequestedWorkspace_AndRepositoryDoesNotTrack(WorkspaceRole role)
+    {
+        using var client = _factory.CreateHttpsClient();
+        using var otherClient = _factory.CreateHttpsClient();
+        var email = UniqueEmail();
+        var otherEmail = UniqueEmail();
+        var createdAt = new DateTimeOffset(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
+        var workspace = new Workspace(Guid.NewGuid(), "Development", createdAt);
+        var otherWorkspace = new Workspace(Guid.NewGuid(), "Other user's workspace", createdAt);
+        var workspaceIds = new List<Guid> { workspace.Id, otherWorkspace.Id };
+        try
+        {
+            var userId = await AuthenticateAsync(client, email);
+            var otherUserId = await AuthenticateAsync(otherClient, otherEmail);
+            await using var scope = _factory.Services.CreateAsyncScope();
+            var repository = scope.ServiceProvider.GetRequiredService<IWorkspaceRepository>();
+            var context = scope.ServiceProvider.GetRequiredService<KwestieDbContext>();
+            await repository.AddAsync(workspace, new WorkspaceMember(workspace.Id, userId, role, createdAt));
+            await repository.AddAsync(otherWorkspace,
+                new WorkspaceMember(otherWorkspace.Id, otherUserId, WorkspaceRole.Admin, createdAt));
+            context.ChangeTracker.Clear();
+            var stored = await repository.GetForUserAsync(workspace.Id, userId);
+            Assert.NotNull(stored);
+            Assert.Equal(workspace.Id, stored.Id);
+            Assert.Empty(context.ChangeTracker.Entries());
+
+            client.DefaultRequestHeaders.Add("UserId", otherUserId.ToString());
+            client.DefaultRequestHeaders.Add("WorkspaceId", otherWorkspace.Id.ToString());
+            using var request = new HttpRequestMessage(HttpMethod.Get,
+                $"/api/workspaces/{workspace.Id}?userId={otherUserId}&workspaceId={otherWorkspace.Id}")
+            {
+                Content = JsonContent.Create(new { userId = otherUserId })
+            };
+            using var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var result = await response.Content.ReadFromJsonAsync<WorkspaceResponse>();
+            Assert.Equal(new WorkspaceResponse(workspace.Id, workspace.Name, workspace.CreatedAt), result);
+            using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(new[] { "createdAt", "name", "workspaceId" },
+                json.RootElement.EnumerateObject().Select(p => p.Name).Order().ToArray());
+            Assert.DoesNotContain(otherWorkspace.Name, await response.Content.ReadAsStringAsync());
+
+            using var foreignResponse = await client.GetAsync($"/api/workspaces/{otherWorkspace.Id}");
+            Assert.Equal(HttpStatusCode.NotFound, foreignResponse.StatusCode);
+            Assert.Equal(string.Empty, await foreignResponse.Content.ReadAsStringAsync());
+        }
+        finally
+        {
+            await CleanupAsync([email, otherEmail], workspaceIds);
+        }
+    }
+
+    [Fact]
+    public async Task Get_UnavailableCases_ReturnIdenticalNotFound_AndMalformedIdReturnsBadRequest()
+    {
+        using var client = _factory.CreateHttpsClient();
+        using var otherClient = _factory.CreateHttpsClient();
+        var email = UniqueEmail();
+        var otherEmail = UniqueEmail();
+        var createdAt = DateTimeOffset.UtcNow;
+        var inactiveWorkspace = new Workspace(Guid.NewGuid(), "Inactive", createdAt);
+        var foreignWorkspace = new Workspace(Guid.NewGuid(), "Foreign", createdAt);
+        var workspaceIds = new List<Guid> { inactiveWorkspace.Id, foreignWorkspace.Id };
+        try
+        {
+            var userId = await AuthenticateAsync(client, email);
+            var otherUserId = await AuthenticateAsync(otherClient, otherEmail);
+            await using var scope = _factory.Services.CreateAsyncScope();
+            var repository = scope.ServiceProvider.GetRequiredService<IWorkspaceRepository>();
+            var context = scope.ServiceProvider.GetRequiredService<KwestieDbContext>();
+            await repository.AddAsync(inactiveWorkspace,
+                new WorkspaceMember(inactiveWorkspace.Id, userId, WorkspaceRole.Admin, createdAt));
+            await repository.AddAsync(foreignWorkspace,
+                new WorkspaceMember(foreignWorkspace.Id, otherUserId, WorkspaceRole.Admin, createdAt));
+            await context.WorkspaceMembers.Where(m => m.WorkspaceId == inactiveWorkspace.Id)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(m => m.IsActive, false));
+            var missingId = Guid.NewGuid();
+            Assert.False(await context.Workspaces.AnyAsync(w => w.Id == missingId));
+            var responses = new List<(HttpStatusCode Status, string? ContentType, string Body)>();
+            foreach (var workspaceId in new[] { foreignWorkspace.Id, inactiveWorkspace.Id, missingId })
+            {
+                using var response = await client.GetAsync($"/api/workspaces/{workspaceId}");
+                responses.Add((response.StatusCode, response.Content.Headers.ContentType?.ToString(),
+                    await response.Content.ReadAsStringAsync()));
+            }
+            Assert.All(responses, response =>
+            {
+                Assert.Equal(HttpStatusCode.NotFound, response.Status);
+                Assert.Equal(string.Empty, response.Body);
+                Assert.Equal(responses[0], response);
+            });
+            using var malformedResponse = await client.GetAsync("/api/workspaces/not-a-guid");
+            Assert.Equal(HttpStatusCode.BadRequest, malformedResponse.StatusCode);
+            Assert.Equal("application/problem+json", malformedResponse.Content.Headers.ContentType?.MediaType);
+        }
+        finally
+        {
+            await CleanupAsync([email, otherEmail], workspaceIds);
+        }
     }
 
     [Fact]

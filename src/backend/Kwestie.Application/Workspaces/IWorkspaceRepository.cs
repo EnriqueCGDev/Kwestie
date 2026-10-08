@@ -16,6 +16,9 @@ public interface IWorkspaceRepository
     Task<IReadOnlyList<Workspace>> ListForUserAsync(
         Guid userId, CancellationToken cancellationToken = default);
 
+    Task<Workspace?> GetForUserAsync(
+        Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Returns true only for an active membership in an existing workspace, regardless of role.
     /// </summary>

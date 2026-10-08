@@ -73,7 +73,7 @@ Requires Bearer authentication. Request contains only Name:
 
 Unknown JSON fields, including userId, return **400 Bad Request**. Name validation and trimming remain in Domain; Domain rejections are mapped to **400 Bad Request** with ProblemDetails. The user ID comes only from `sub`. The use case persists the workspace and that user's active Admin membership atomically, sharing CreatedAt/JoinedAt.
 
-Success: **201 Created**, without a Location header because no individual Workspace GET endpoint exists:
+Success: **201 Created**, retaining the existing response contract without a Location header:
 
 ```json
 { "workspaceId": "..." }
@@ -90,6 +90,20 @@ Requires Bearer authentication. Returns **200 OK** with only the workspaces wher
 ```
 
 Results are ordered by CreatedAt ascending, then WorkspaceId ascending. This is query behavior, not a Domain rule. No user filter is accepted from the client. Workspace listing/creation UI and the Create Kwestie endpoint below are implemented. Workspace navigation and membership management remain pending.
+
+## GET /api/workspaces/{workspaceId}
+
+Requires a valid Bearer JWT and a valid, non-empty Guid sub, as for the other Workspace endpoints. WorkspaceId is bound only from the route; UserId comes only from the validated JWT. No identifier is accepted from body, query, or headers.
+
+An existing workspace with an active Admin or Member membership returns **200 OK**, reusing WorkspaceResponse:
+
+```json
+{ "workspaceId": "550e8400-e29b-41d4-a716-446655440000", "name": "Desarrollo", "createdAt": "2026-10-08T12:00:00Z" }
+```
+
+Only WorkspaceId, Name, and CreatedAt are returned, without memberships, roles, or user information. Missing Workspace, foreign user, and inactive membership all return the same **404 Not Found** with an empty body. Missing/invalid authentication or an invalid sub returns **401 Unauthorized**. For authenticated requests, a malformed/non-Guid route identifier returns **400 Bad Request** through standard Guid model binding; a well-formed but unavailable identifier returns 404.
+
+Application uses one membership-filtered repository read, without a preceding HasActiveMembershipAsync call. The existing POST and list contracts are unchanged. Angular Workspace navigation remains pending.
 
 ## POST /api/workspaces/{workspaceId}/kwesties
 

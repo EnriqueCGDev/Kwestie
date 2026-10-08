@@ -207,5 +207,8 @@ public class CreateKwestieHandlerTests
 
         public Task<IReadOnlyList<Workspace>> ListForUserAsync(
             Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<Workspace?> GetForUserAsync(
+            Guid workspaceId, Guid userId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

@@ -47,6 +47,9 @@ Workspaces/
 │   ├── CreateWorkspaceCommand.cs
 │   ├── CreateWorkspaceHandler.cs
 │   └── CreateWorkspaceResult.cs
+├── Get/
+│   ├── GetWorkspaceQuery.cs
+│   └── GetWorkspaceHandler.cs
 └── List/
     ├── ListWorkspacesQuery.cs
     ├── ListWorkspacesHandler.cs
@@ -106,6 +109,12 @@ Intrinsic validation remains in Domain. `DomainException` propagates unchanged f
 
 The repository contract returns only workspaces where that user has an active membership, ordered by CreatedAt ascending and WorkspaceId ascending as a tie-breaker. Ordering is query behavior, not a Domain rule. API registers the handler and exposes GET /api/workspaces; HTTP DTOs remain in API. Unit tests verify user/cancellation forwarding, result transformation, and awaiting the asynchronous read.
 
+## Get Workspace
+
+`GetWorkspaceQuery` contains WorkspaceId and UserId. `GetWorkspaceHandler` awaits `IWorkspaceRepository.GetForUserAsync`, forwards both identifiers and CancellationToken, and reuses the existing WorkspaceSummary result. An unavailable workspace is represented by null, without an access exception or a second membership check. Application has no HTTP, JWT, EF, or Infrastructure dependency.
+
+The repository returns a workspace only when the requested user has an active membership in it, regardless of Admin/Member role. API registers the handler as scoped and exposes GET /api/workspaces/{workspaceId}, using the route ID and validated JWT sub. A summary becomes WorkspaceResponse with 200; null becomes a uniform empty 404. Unit tests cover forwarding, mapping, absence, and awaiting the repository. HTTP/SQL tests cover both active roles, isolation, indistinguishable unavailable responses, malformed route binding, and no tracking. Angular navigation remains pending.
+
 ## Register
 
 `RegisterUserCommand` contains only Email and Password. `RegisterUserHandler` forwards both values and the CancellationToken to the feature-specific `IUserRegistration.RegisterAsync` contract. Application does not reference UserManager, ApplicationUser, IdentityResult, or other Identity types, and does not hash passwords or write users through EF.
@@ -150,11 +159,11 @@ Checks requiring other data or coordination belong to Application orchestration.
 
 Implemented: `CreateKwestieCommand`, `CreateKwestieHandler`, `CreateKwestieResult`, `IKwestieRepository`, and feature tests in `Kwestie.Application.Tests/Kwesties/Create`.
 
-Create Workspace is implemented through `CreateWorkspaceCommand`, `CreateWorkspaceHandler`, `CreateWorkspaceResult`, and `IWorkspaceRepository`. Tests use a recording fake and fixed TimeProvider to verify the Workspace/Admin membership pair, shared identifiers/timestamps, cancellation forwarding, waiting for persistence, persistence failure propagation, and Domain rejection without a repository call. Concrete persistence and repository DI registration are implemented in Infrastructure; AddWorkspaces was applied manually and Workspace SQL persistence/atomicity is validated. Create/List handlers are registered in API and exposed through protected POST/GET /api/workspaces, with listing/creation UI implemented. The protected Create Kwestie endpoint is also implemented; membership management remains pending.
+Create Workspace is implemented through `CreateWorkspaceCommand`, `CreateWorkspaceHandler`, `CreateWorkspaceResult`, and `IWorkspaceRepository`. Tests use a recording fake and fixed TimeProvider to verify the Workspace/Admin membership pair, shared identifiers/timestamps, cancellation forwarding, waiting for persistence, persistence failure propagation, and Domain rejection without a repository call. Concrete persistence and repository DI registration are implemented in Infrastructure; AddWorkspaces was applied manually and Workspace SQL persistence/atomicity is validated. Create/List/Get handlers are registered in API and exposed through protected POST/GET /api/workspaces and GET /api/workspaces/{workspaceId}, with listing/creation UI implemented and Angular navigation still pending. The protected Create Kwestie endpoint is also implemented; membership management remains pending.
 
 Register is also implemented through RegisterUserCommand, RegisterUserHandler, RegisterUserResult, and IUserRegistration. Unit tests use a small fake to verify input/cancellation forwarding and success/error results; a separate Infrastructure integration test verifies real Identity user persistence.
 
-Logout unit tests verify token/cancellation forwarding and waiting for revocation. Login and Refresh unit tests use small fakes to verify input/cancellation forwarding, exact user IDs, both tokens and expirations, and no generation on rejection. Result tests reject empty IDs, blank tokens, and invalid UTC expiration values. IntegrationTests validates credential checking and the full Login + Refresh + JWT flow against SQL Server with cleanup in finally. With 20260929220522_AddRefreshTokens applied locally, SQL tests have passed for issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. The latest full suite passed on 2026-10-08 with AddWorkspaces applied and Create Kwestie HTTP/SQL coverage: 166 tests, 166 passed, 0 failed, 0 skipped. Database-free tests cover JWT, mapping, DI, configuration, and malformed refresh rejection.
+Logout unit tests verify token/cancellation forwarding and waiting for revocation. Login and Refresh unit tests use small fakes to verify input/cancellation forwarding, exact user IDs, both tokens and expirations, and no generation on rejection. Result tests reject empty IDs, blank tokens, and invalid UTC expiration values. IntegrationTests validates credential checking and the full Login + Refresh + JWT flow against SQL Server with cleanup in finally. With 20260929220522_AddRefreshTokens applied locally, SQL tests have passed for issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. The latest full suite passed on 2026-10-08 with AddWorkspaces applied, individual Workspace access, and Create Kwestie HTTP/SQL coverage: 174 tests, 174 passed, 0 failed, 0 skipped. Database-free tests cover JWT, mapping, DI, configuration, and malformed refresh rejection.
 
 Create Kwestie tests use local recording repository fakes and a fixed time provider. They cover the created entity and result, generated ID, timestamps, unassigned number, cancellation forwarding to both repositories, active Admin/Member access, each access rejection without persistence, awaiting validation and saving, query failure propagation, and Domain rejection without a repository call.
 
