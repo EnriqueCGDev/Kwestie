@@ -5,7 +5,9 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { AuthService } from './core/auth/auth.service';
 import { Login } from './features/auth/login/login';
 import { Register } from './features/auth/register/register';
-import { Session } from './features/auth/session/session';
+import { of } from 'rxjs';
+import { Workspaces } from './features/workspaces/workspaces';
+import { WorkspaceService } from './features/workspaces/workspace.service';
 import { routes } from './app.routes';
 
 describe('authentication routes', () => {
@@ -15,7 +17,8 @@ describe('authentication routes', () => {
   beforeEach(() => {
     authenticated.set(false);
     auth.refresh.mockReset();
-    TestBed.configureTestingModule({ providers: [provideRouter(routes), { provide: AuthService, useValue: auth }] });
+    TestBed.configureTestingModule({ providers: [provideRouter(routes), { provide: AuthService, useValue: auth },
+      { provide: WorkspaceService, useValue: { list: vi.fn(() => of([])) } }] });
   });
 
   it('redirects an unauthenticated root or protected route to login without refreshing', async () => {
@@ -29,7 +32,7 @@ describe('authentication routes', () => {
   it('allows a restored session through root to the protected app route', async () => {
     authenticated.set(true);
     const harness = await RouterTestingHarness.create();
-    expect(await harness.navigateByUrl('/', Session)).toBeInstanceOf(Session);
+    expect(await harness.navigateByUrl('/', Workspaces)).toBeInstanceOf(Workspaces);
     expect(TestBed.inject(Router).url).toBe('/app');
     expect(auth.refresh).not.toHaveBeenCalled();
   });

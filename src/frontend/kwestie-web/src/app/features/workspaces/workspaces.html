@@ -1,0 +1,66 @@
+<div class="workspace-page">
+  <header class="app-header">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">K</span><span>Kwestie</span></div>
+    <button type="button" class="secondary-button" [disabled]="loggingOut()" (click)="logout()">
+      {{ loggingOut() ? 'Cerrando sesión…' : 'Cerrar sesión' }}
+    </button>
+  </header>
+  <main>
+    @if (logoutError(); as message) {
+      <p class="notice error" role="alert">{{ message }}</p>
+    }
+    <div class="page-heading">
+      <p class="eyebrow">TU EQUIPO, TU ESPACIO</p>
+      <h1>Workspaces</h1>
+      <p>Organiza el trabajo de tu equipo en un espacio compartido.</p>
+    </div>
+    <div class="workspace-layout">
+      <section class="create-panel" aria-labelledby="create-title">
+        <h2 id="create-title">Crear Workspace</h2>
+        <p>Dale un nombre a tu nuevo espacio de trabajo.</p>
+        <form [formGroup]="form" (ngSubmit)="create()" novalidate>
+          <label for="workspace-name">Nombre</label>
+          <input id="workspace-name" type="text" formControlName="name"
+            [attr.aria-invalid]="form.controls.name.invalid && form.controls.name.touched ? 'true' : null"
+            [attr.aria-describedby]="form.controls.name.invalid && form.controls.name.touched ? 'name-error' : null" />
+          @if (form.controls.name.invalid && form.controls.name.touched) {
+            <p id="name-error" class="field-error">Introduce un nombre.</p>
+          }
+          <button class="primary-button" type="submit" [disabled]="creating() || loading()">
+            {{ creating() ? 'Creando…' : 'Crear Workspace' }}
+          </button>
+        </form>
+        @if (createError(); as message) {
+          <p class="notice error" role="alert">{{ message }}</p>
+        }
+        @if (created()) {
+          <p class="notice success" role="status">Workspace creado correctamente.</p>
+        }
+      </section>
+      <section class="workspace-list" aria-labelledby="list-title" [attr.aria-busy]="loading()">
+        <h2 id="list-title">Tus Workspaces</h2>
+        @if (loading()) {
+          <p class="list-status" role="status">Cargando Workspaces…</p>
+        }
+        @if (loadError(); as message) {
+          <p class="notice error" role="alert">{{ message }}</p>
+        }
+        @if (workspaces().length > 0) {
+          <ul>
+            @for (workspace of workspaces(); track workspace.workspaceId) {
+              <li class="workspace-card">
+                <h3>{{ workspace.name }}</h3>
+                <p>Creado el <time [attr.datetime]="workspace.createdAt">{{ workspace.createdAt | date:'dd/MM/yyyy, HH:mm' }}</time></p>
+              </li>
+            }
+          </ul>
+        } @else if (!loading() && !loadError()) {
+          <div class="empty-state">
+            <h3>Aún no tienes Workspaces</h3>
+            <p>Crea tu primer espacio con el formulario para comenzar.</p>
+          </div>
+        }
+      </section>
+    </div>
+  </main>
+</div>

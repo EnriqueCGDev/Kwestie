@@ -1,0 +1,37 @@
+:host { display: block; }
+.workspace-page { min-height: 100vh; min-height: 100dvh; background: #f3f6fb; }
+.app-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem max(1rem, calc((100% - 1120px) / 2)); background: #fff; border-bottom: 1px solid #e0e6f0; }
+.brand { display: flex; align-items: center; gap: .7rem; font-size: 1.1rem; font-weight: 750; }
+.brand-mark { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 10px; color: #fff; background: #234697; }
+main { max-width: 1120px; margin: auto; padding: 2.5rem 1rem; }
+.page-heading { margin-bottom: 2rem; }
+.eyebrow { color: #3157b7; font-size: .72rem; font-weight: 750; letter-spacing: .13em; }
+h1 { margin: .5rem 0; font-size: clamp(2rem, 5vw, 2.6rem); letter-spacing: -.04em; }
+h2 { font-size: 1.2rem; margin: 0 0 1rem; }
+h3 { margin: 0 0 .6rem; overflow-wrap: anywhere; }
+p { color: #59677e; line-height: 1.5; }
+.workspace-layout { display: grid; grid-template-columns: minmax(250px, 340px) minmax(0, 1fr); gap: 2rem; align-items: start; }
+.create-panel, .workspace-card, .empty-state { padding: 1.5rem; background: #fff; border: 1px solid #e0e6f0; border-radius: 14px; }
+.create-panel > p { margin-bottom: 1.5rem; }
+label { display: block; font-size: .9rem; font-weight: 650; margin-bottom: .5rem; }
+input { width: 100%; min-height: 46px; padding: .7rem .85rem; border: 1px solid #a7b3c5; border-radius: 9px; color: #172238; background: #fff; }
+input[aria-invalid="true"] { border-color: #ad3544; }
+button { min-height: 44px; padding: .7rem 1rem; border-radius: 9px; font-weight: 700; cursor: pointer; }
+.primary-button { margin-top: 1rem; width: 100%; border: 0; background: #234697; color: #fff; }
+.primary-button:hover:not(:disabled) { background: #193779; }
+.secondary-button { color: #234697; background: #fff; border: 1px solid #a7b3c5; }
+.secondary-button:hover:not(:disabled) { background: #f3f6fb; }
+button:disabled { opacity: .65; cursor: wait; }
+button:focus-visible, input:focus-visible { outline: 3px solid #f4b443; outline-offset: 2px; }
+.field-error { color: #982838; font-size: .82rem; margin: .4rem 0 0; }
+.notice { padding: .9rem 1rem; border-radius: 9px; font-size: .9rem; }
+.error { background: #fff1f2; color: #852535; border: 1px solid #f1bec4; }
+.success { background: #ecf7f1; color: #175b39; border: 1px solid #add9c1; }
+.workspace-list ul { display: grid; gap: 1rem; list-style: none; padding: 0; margin: 0; }
+.workspace-card p { margin: 0; font-size: .9rem; }
+.empty-state { text-align: center; padding: 2.5rem 1.5rem; }
+.empty-state p { margin-bottom: 0; }
+@media (max-width: 720px) {
+  .workspace-layout { grid-template-columns: 1fr; }
+  main { padding-top: 1.5rem; }
+}

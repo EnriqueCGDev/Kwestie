@@ -5,9 +5,9 @@ export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'app' },
   {
     path: 'app',
-    title: 'Sesión · Kwestie',
+    title: 'Workspaces · Kwestie',
     canActivate: [authGuard],
-    loadComponent: () => import('./features/auth/session/session').then(module => module.Session),
+    loadComponent: () => import('./features/workspaces/workspaces').then(module => module.Workspaces),
   },
   {
     path: 'login',

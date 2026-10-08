@@ -29,7 +29,7 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 
 ### Planned
 
-- Workspace UI, dashboard, and automatic refresh after a 401
+- Workspace selection/navigation, dashboard, and automatic refresh after a 401
 - CORS/frontend configuration according to deployment
 - Docker
 - CI/CD
@@ -38,22 +38,22 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 
 Kwestie is under active development.
 
-InitialCreate, AddIdentity, 20260929220522_AddRefreshTokens, and 20261007152213_AddWorkspaces are applied to the local Kwestie database. Login returns access and refresh tokens with separate UTC expirations, and Refresh rotates the persisted token. The complete Login + Refresh + JWT flow has been validated against SQL Server, including issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. API exposes Register, Login, Refresh, and Logout endpoints. Access tokens are returned as JSON for Bearer use; refresh tokens are sent only in a secure HttpOnly cookie. Angular has Login and Register screens backed by the in-memory authentication service. It attempts one cookie-backed Refresh during startup and attaches the in-memory access token to Kwestie API requests outside `/api/auth/...`. Login navigates to the guarded `/app` route, which currently shows only a session message and Logout button. Workspace UI, a functional dashboard, automatic refresh after a 401, and deployment-specific CORS remain pending. Authentication is not complete.
+InitialCreate, AddIdentity, 20260929220522_AddRefreshTokens, and 20261007152213_AddWorkspaces are applied to the local Kwestie database. Login returns access and refresh tokens with separate UTC expirations, and Refresh rotates the persisted token. The complete Login + Refresh + JWT flow has been validated against SQL Server, including issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. API exposes Register, Login, Refresh, and Logout endpoints. Access tokens are returned as JSON for Bearer use; refresh tokens are sent only in a secure HttpOnly cookie. Angular has Login and Register screens backed by the in-memory authentication service. It attempts one cookie-backed Refresh during startup and attaches the in-memory access token to Kwestie API requests outside `/api/auth/...`. Login navigates to the guarded `/app` route, which lists the user's Workspaces, supports creation and Logout, and reloads the list after creation. Workspace selection/navigation, a functional dashboard, automatic refresh after a 401, and deployment-specific CORS remain pending. Authentication is not complete.
 
 Implemented so far:
 
 - Base Clean Architecture solution
-- Angular Login and Register screens, guarded `/app` session screen, and in-memory authentication service
+- Angular Login and Register screens, guarded `/app` Workspace listing/creation screen, and in-memory authentication service
 - Domain and test projects
 - Initial `Kwestie` entity
 - `Open -> InProgress -> Resolved -> Closed` lifecycle
 - Unit tests for the current domain behavior
 - Create Kwestie application use case and its unit tests
-- Workspace/WorkspaceMember models, Create Workspace with initial Admin membership, EF SQL Server mappings, scoped repository, and persistence tests; AddWorkspaces is applied manually locally and real SQL persistence/atomicity is validated; protected POST/GET /api/workspaces are implemented; UI and membership management remain pending
+- Workspace/WorkspaceMember models, Create Workspace with initial Admin membership, EF SQL Server mappings, scoped repository, and persistence tests; AddWorkspaces is applied manually locally and real SQL persistence/atomicity is validated; protected POST/GET /api/workspaces are implemented; listing/creation UI is implemented; Workspace navigation and membership management remain pending
 
 Create Kwestie has an Infrastructure repository implementation using EF Core and SQL Server. `InitialCreate` exists and was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, generated Number, retrieval, and cleanup. There is still no Create Kwestie API endpoint; workspace and membership checks required before exposing this use case are not implemented.
 
-Full authentication is not implemented yet. Workspace UI, automatic refresh after a 401, assignment, comments, history, search, and dashboard functionality remain pending.
+Full authentication is not implemented yet. Workspace navigation, automatic refresh after a 401, assignment, comments, history, search, and dashboard functionality remain pending.
 
 ## Architecture
 

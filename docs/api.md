@@ -61,7 +61,7 @@ No body. Uses the refresh cookie, revokes only the supplied active refresh token
 
 The cookie Path is now /api/auth for issuance, rotation, and deletion, allowing browser delivery to both Refresh and Logout. Cookies from the previous /api/auth/refresh scope must be cleared when updating an existing local browser session.
 
-Angular uses these contracts through an in-memory AuthService and relative URLs via a local development proxy. Login and Register screens are available at `/login` and `/register`. On startup Angular makes one `/api/auth/refresh` attempt using the HttpOnly cookie; failure leaves no session and does not block startup. The access token remains in memory and a Bearer interceptor attaches it only to `/api/...` requests outside `/api/auth/...`. Login navigates to `/app`, a minimal guarded session screen with a Logout button; this is not a functional dashboard. The guard reads the restored session state without calling Refresh. Workspace UI, automatic refresh after a 401, and deployment-specific CORS remain pending. Cross-site deployment would require a separate CORS/CSRF decision rather than changing SameSite preemptively.
+Angular uses these contracts through an in-memory AuthService and relative URLs via a local development proxy. Login and Register screens are available at `/login` and `/register`. On startup Angular makes one `/api/auth/refresh` attempt using the HttpOnly cookie; failure leaves no session and does not block startup. The access token remains in memory and a Bearer interceptor attaches it only to `/api/...` requests outside `/api/auth/...`. Login navigates to `/app`, a guarded Workspace listing/creation screen with Logout; this is not a functional dashboard. The guard reads the restored session state without calling Refresh. The screen loads Workspaces once on entry and reloads them after successful creation, using the existing Bearer interceptor without sending UserId. Workspace selection/navigation, automatic refresh after a 401, and deployment-specific CORS remain pending. Cross-site deployment would require a separate CORS/CSRF decision rather than changing SameSite preemptively.
 
 ## POST /api/workspaces
 
@@ -89,4 +89,4 @@ Requires Bearer authentication. Returns **200 OK** with only the workspaces wher
 ]
 ```
 
-Results are ordered by CreatedAt ascending, then WorkspaceId ascending. This is query behavior, not a Domain rule. No user filter is accepted from the client. Membership management, Workspace UI, and Create Kwestie authorization/endpoints remain pending.
+Results are ordered by CreatedAt ascending, then WorkspaceId ascending. This is query behavior, not a Domain rule. No user filter is accepted from the client. Workspace listing/creation UI is implemented. Workspace navigation, membership management, and Create Kwestie authorization/endpoints remain pending.
