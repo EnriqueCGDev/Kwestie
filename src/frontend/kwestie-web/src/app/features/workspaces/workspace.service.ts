@@ -10,6 +10,10 @@ export class WorkspaceService {
     return this.http.get<WorkspaceSummary[]>('/api/workspaces');
   }
 
+  get(workspaceId: string) {
+    return this.http.get<WorkspaceSummary>(`/api/workspaces/${encodeURIComponent(workspaceId)}`);
+  }
+
   create(request: CreateWorkspaceRequest) {
     return this.http.post<CreateWorkspaceResponse>('/api/workspaces', { name: request.name });
   }

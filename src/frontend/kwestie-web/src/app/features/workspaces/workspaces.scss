@@ -22,7 +22,7 @@ button { min-height: 44px; padding: .7rem 1rem; border-radius: 9px; font-weight:
 .secondary-button { color: #234697; background: #fff; border: 1px solid #a7b3c5; }
 .secondary-button:hover:not(:disabled) { background: #f3f6fb; }
 button:disabled { opacity: .65; cursor: wait; }
-button:focus-visible, input:focus-visible { outline: 3px solid #f4b443; outline-offset: 2px; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid #f4b443; outline-offset: 2px; }
 .field-error { color: #982838; font-size: .82rem; margin: .4rem 0 0; }
 .notice { padding: .9rem 1rem; border-radius: 9px; font-size: .9rem; }
 .error { background: #fff1f2; color: #852535; border: 1px solid #f1bec4; }

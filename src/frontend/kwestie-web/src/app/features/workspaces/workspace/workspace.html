@@ -1,0 +1,57 @@
+<div class="workspace-page">
+  <header class="app-header">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">K</span><span>Kwestie</span></div>
+    <a routerLink="/app">Volver a Workspaces</a>
+  </header>
+  <main [attr.aria-busy]="loading()">
+    @if (loading()) {
+      <p role="status">Cargando Workspace…</p>
+    }
+    @if (loadError(); as message) {
+      <h1>Workspace</h1>
+      <p class="notice error" role="alert">{{ message }}</p>
+      @if (canRetry()) {
+        <button type="button" class="secondary-button" (click)="retry()">Reintentar</button>
+      }
+    }
+    @if (workspace(); as selected) {
+      <div class="page-heading">
+        <p class="eyebrow">ESPACIO DE TRABAJO</p>
+        <h1>{{ selected.name }}</h1>
+        <p>Crea un asunto, solicitud o incidencia para tu equipo.</p>
+      </div>
+      <section class="create-panel" aria-labelledby="create-title">
+        <h2 id="create-title">Crear Kwestie</h2>
+        <form [formGroup]="form" (ngSubmit)="create()" novalidate [attr.aria-busy]="creating()">
+          <fieldset [disabled]="creating()">
+            <label for="kwestie-title">Título</label>
+            <input id="kwestie-title" type="text" formControlName="title"
+              [attr.aria-invalid]="form.controls.title.invalid && form.controls.title.touched ? 'true' : null"
+              [attr.aria-describedby]="form.controls.title.invalid && form.controls.title.touched ? 'title-error' : null" />
+            @if (form.controls.title.invalid && form.controls.title.touched) {
+              <p id="title-error" class="field-error" role="alert">Introduce un título que no esté vacío.</p>
+            }
+            <label for="kwestie-description">Descripción <span class="optional">(opcional)</span></label>
+            <textarea id="kwestie-description" rows="5" formControlName="description"></textarea>
+            <label for="kwestie-priority">Prioridad</label>
+            <select id="kwestie-priority" formControlName="priority">
+              <option [ngValue]="1">Baja</option>
+              <option [ngValue]="2">Normal</option>
+              <option [ngValue]="3">Alta</option>
+              <option [ngValue]="4">Crítica</option>
+            </select>
+            <button class="primary-button" type="submit" [disabled]="creating()">
+              {{ creating() ? 'Creando…' : 'Crear Kwestie' }}
+            </button>
+          </fieldset>
+        </form>
+        @if (createError(); as message) {
+          <p class="notice error" role="alert">{{ message }}</p>
+        }
+        @if (created()) {
+          <p class="notice success" role="status">Kwestie creada correctamente.</p>
+        }
+      </section>
+    }
+  </main>
+</div>

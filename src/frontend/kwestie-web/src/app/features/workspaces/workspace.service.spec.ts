@@ -14,6 +14,20 @@ describe('WorkspaceService', () => {
   });
   afterEach(() => http.verify());
 
+  it('gets an individual Workspace without sending a user ID or manual authentication', () => {
+    const received = vi.fn();
+    service.get('workspace-id').subscribe(received);
+    const request = http.expectOne('/api/workspaces/workspace-id');
+    expect(request.request.method).toBe('GET');
+    expect(request.request.body).toBeNull();
+    expect(request.request.params.keys()).toEqual([]);
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    expect(request.request.withCredentials).toBe(false);
+    const workspace = { workspaceId: 'workspace-id', name: 'Support', createdAt: '2026-10-08T12:00:00Z' };
+    request.flush(workspace);
+    expect(received).toHaveBeenCalledWith(workspace);
+  });
+
   it('lists with the relative GET contract without manual authentication or credentials', () => {
     const received = vi.fn();
     service.list().subscribe(received);

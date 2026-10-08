@@ -45,14 +45,19 @@ describe('Workspaces', () => {
     expect(fixture.nativeElement.querySelector('.workspace-list').getAttribute('aria-busy')).toBe('false');
   });
 
-  it('renders server names and readable dates without technical IDs or fictitious navigation', () => {
-    finishListing([{ workspaceId: 'technical-id', name: 'Support team', createdAt: '2026-10-07T12:00:00Z' }]);
+  it('renders server names, readable dates and accessible links to each Workspace', () => {
+    finishListing([
+      { workspaceId: 'technical-id', name: 'Support team', createdAt: '2026-10-07T12:00:00Z' },
+      { workspaceId: 'second-id', name: 'Development', createdAt: '2026-10-08T12:00:00Z' },
+    ]);
     const card: HTMLElement = fixture.nativeElement.querySelector('.workspace-card');
     expect(card.textContent).toContain('Support team');
     expect(card.querySelector('time')?.textContent).toMatch(/07\/10\/2026, \d{2}:\d{2}/);
     expect(card.querySelector('time')?.getAttribute('datetime')).toBe('2026-10-07T12:00:00Z');
     expect(card.textContent).not.toContain('technical-id');
-    expect(card.querySelector('a, button')).toBeNull();
+    const links: HTMLAnchorElement[] = Array.from(fixture.nativeElement.querySelectorAll('.workspace-card a'));
+    expect(links.map(link => link.getAttribute('href'))).toEqual(['/app/workspaces/technical-id', '/app/workspaces/second-id']);
+    expect(links.map(link => link.textContent)).toEqual(['Support team', 'Development']);
     expect(navigate).not.toHaveBeenCalled();
   });
 

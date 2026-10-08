@@ -49,7 +49,7 @@
           <ul>
             @for (workspace of workspaces(); track workspace.workspaceId) {
               <li class="workspace-card">
-                <h3>{{ workspace.name }}</h3>
+                <h3><a [routerLink]="['/app/workspaces', workspace.workspaceId]">{{ workspace.name }}</a></h3>
                 <p>Creado el <time [attr.datetime]="workspace.createdAt">{{ workspace.createdAt | date:'dd/MM/yyyy, HH:mm' }}</time></p>
               </li>
             }

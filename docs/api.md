@@ -61,7 +61,7 @@ No body. Uses the refresh cookie, revokes only the supplied active refresh token
 
 The cookie Path is now /api/auth for issuance, rotation, and deletion, allowing browser delivery to both Refresh and Logout. Cookies from the previous /api/auth/refresh scope must be cleared when updating an existing local browser session.
 
-Angular uses these contracts through an in-memory AuthService and relative URLs via a local development proxy. Login and Register screens are available at `/login` and `/register`. On startup Angular makes one `/api/auth/refresh` attempt using the HttpOnly cookie; failure leaves no session and does not block startup. The access token remains in memory and a Bearer interceptor attaches it only to `/api/...` requests outside `/api/auth/...`. Login navigates to `/app`, a guarded Workspace listing/creation screen with Logout; this is not a functional dashboard. The guard reads the restored session state without calling Refresh. The screen loads Workspaces once on entry and reloads them after successful creation, using the existing Bearer interceptor without sending UserId. Workspace selection/navigation, automatic refresh after a 401, and deployment-specific CORS remain pending. Cross-site deployment would require a separate CORS/CSRF decision rather than changing SameSite preemptively.
+Angular uses these contracts through an in-memory AuthService and relative URLs via a local development proxy. Login and Register screens are available at `/login` and `/register`. On startup Angular makes one `/api/auth/refresh` attempt using the HttpOnly cookie; failure leaves no session and does not block startup. The access token remains in memory and a Bearer interceptor attaches it only to `/api/...` requests outside `/api/auth/...`. Login navigates to `/app`, a guarded Workspace listing/creation screen with Logout; this is not a functional dashboard. The guard reads the restored session state without calling Refresh. The screen loads Workspaces once on entry and reloads them after successful creation, using the existing Bearer interceptor without sending UserId. Workspace links open /app/workspaces/:workspaceId for an individual GET and Create Kwestie form. Automatic refresh after a 401 and deployment-specific CORS remain pending. Cross-site deployment would require a separate CORS/CSRF decision rather than changing SameSite preemptively.
 
 ## POST /api/workspaces
 
@@ -89,7 +89,7 @@ Requires Bearer authentication. Returns **200 OK** with only the workspaces wher
 ]
 ```
 
-Results are ordered by CreatedAt ascending, then WorkspaceId ascending. This is query behavior, not a Domain rule. No user filter is accepted from the client. Workspace listing/creation UI and the Create Kwestie endpoint below are implemented. Workspace navigation and membership management remain pending.
+Results are ordered by CreatedAt ascending, then WorkspaceId ascending. This is query behavior, not a Domain rule. No user filter is accepted from the client. Workspace listing/creation UI and the Create Kwestie endpoint below are implemented. Individual Workspace navigation and Create Kwestie UI are implemented; membership management remains pending.
 
 ## GET /api/workspaces/{workspaceId}
 
@@ -103,7 +103,7 @@ An existing workspace with an active Admin or Member membership returns **200 OK
 
 Only WorkspaceId, Name, and CreatedAt are returned, without memberships, roles, or user information. Missing Workspace, foreign user, and inactive membership all return the same **404 Not Found** with an empty body. Missing/invalid authentication or an invalid sub returns **401 Unauthorized**. For authenticated requests, a malformed/non-Guid route identifier returns **400 Bad Request** through standard Guid model binding; a well-formed but unavailable identifier returns 404.
 
-Application uses one membership-filtered repository read, without a preceding HasActiveMembershipAsync call. The existing POST and list contracts are unchanged. Angular Workspace navigation remains pending.
+Application uses one membership-filtered repository read, without a preceding HasActiveMembershipAsync call. The existing POST and list contracts are unchanged. Angular loads this endpoint directly from the guarded Workspace route, including direct entry/reload; it does not resolve the selected Workspace through the list.
 
 ## POST /api/workspaces/{workspaceId}/kwesties
 
@@ -133,4 +133,4 @@ Errors:
 - **401 Unauthorized** for missing/invalid JWT or missing, malformed, or empty Guid sub.
 - **403 Forbidden**, with an empty body, for CreateKwestieAccessDeniedException. Missing Workspace, foreign user, and inactive membership yield the same response without disclosing the reason.
 
-HTTP/SQL tests use real JWT validation and isolated users/workspaces, verify committed data from a separate context, and clean up their own rows in finally. GET/list Kwesties, Kwestie UI, Categories, assignment, and state-changing endpoints remain unimplemented.
+HTTP/SQL tests use real JWT validation and isolated users/workspaces, verify committed data from a separate context, and clean up their own rows in finally. Angular supports this POST from the individual Workspace screen, with numeric priority and confirmation only; authentication headers come from the existing interceptor. GET/list Kwesties, individual Kwestie detail, Categories, assignment, and state-changing endpoints remain unimplemented.
