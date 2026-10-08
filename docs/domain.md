@@ -261,7 +261,7 @@ Workspace persistence is implemented in Infrastructure, and `20261007152213_AddW
 
 Creating a Kwestie requires an existing Workspace and an active membership for the creator. Both Admin and Member may create Kwesties; no additional role restriction applies. Application enforces this rule through its repository contract before persistence, while the Kwestie constructor retains its intrinsic invariants. Access rejection is represented in Application, not by DomainException.
 
-Workspace create/list API and UI are implemented. Categories, Workspace navigation, membership management, and the Create Kwestie HTTP endpoint remain pending. Role changes, deactivation/reactivation, member removal, and ownership transfer are not implemented; their rules remain undefined.
+Workspace create/list API and UI are implemented. The protected Create Kwestie HTTP endpoint is implemented. Categories, Workspace navigation, membership management, GET/list Kwesties, and Kwestie UI remain pending. Role changes, deactivation/reactivation, member removal, and ownership transfer are not implemented; their rules remain undefined.
 
 ## Categories
 

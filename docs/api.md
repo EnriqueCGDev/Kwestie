@@ -89,4 +89,34 @@ Requires Bearer authentication. Returns **200 OK** with only the workspaces wher
 ]
 ```
 
-Results are ordered by CreatedAt ascending, then WorkspaceId ascending. This is query behavior, not a Domain rule. No user filter is accepted from the client. Workspace listing/creation UI is implemented. Application validates active creator membership for Create Kwestie, but its HTTP endpoint remains pending, alongside Workspace navigation and membership management.
+Results are ordered by CreatedAt ascending, then WorkspaceId ascending. This is query behavior, not a Domain rule. No user filter is accepted from the client. Workspace listing/creation UI and the Create Kwestie endpoint below are implemented. Workspace navigation and membership management remain pending.
+
+## POST /api/workspaces/{workspaceId}/kwesties
+
+Requires a valid Bearer access token and a non-empty Guid `sub`, using the same identity rules as Workspace endpoints. WorkspaceId comes only from the route; CreatedById comes only from the validated JWT. Query/header values cannot supply either identifier.
+
+Request accepts only required Title, optional Description, and required numeric Priority:
+
+```json
+{ "title": "Impresora descompuesta", "description": "No imprime desde esta mañana", "priority": 2 }
+```
+
+Priority values are 1 = Low, 2 = Normal, 3 = High, and 4 = Critical. No global enum serialization change is made. Domain validates and trims Title, trims Description (omitted/null becomes an empty string), and validates the defined priority; no length limits are imposed. Unknown JSON properties, including createdById, workspaceId, categoryId, id, number, and status, are rejected. CategoryId is always null in the Application command.
+
+KwestiesController delegates to CreateKwestieHandler; it does not repeat the workspace/membership check. Active Admin and Member memberships are permitted.
+
+After persistence, **201 Created** returns only:
+
+```json
+{ "kwestieId": "..." }
+```
+
+The ID comes from CreateKwestieResult. There is no Location header, Number, Key, or visible reference. SQL Server still generates Number using the existing mapping.
+
+Errors:
+
+- **400 Bad Request** with ProblemDetails for Domain invariant failures, missing Priority, invalid JSON/types, or unknown fields.
+- **401 Unauthorized** for missing/invalid JWT or missing, malformed, or empty Guid sub.
+- **403 Forbidden**, with an empty body, for CreateKwestieAccessDeniedException. Missing Workspace, foreign user, and inactive membership yield the same response without disclosing the reason.
+
+HTTP/SQL tests use real JWT validation and isolated users/workspaces, verify committed data from a separate context, and clean up their own rows in finally. GET/list Kwesties, Kwestie UI, Categories, assignment, and state-changing endpoints remain unimplemented.
