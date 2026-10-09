@@ -4,6 +4,25 @@ import { TestBed } from '@angular/core/testing';
 import { KwestieService } from './kwestie.service';
 
 describe('KwestieService', () => {
+  it('gets persisted summaries from the selected Workspace without adding identity or authentication headers', () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const service = TestBed.inject(KwestieService);
+    const http = TestBed.inject(HttpTestingController);
+    const received = vi.fn();
+    service.list('selected-id').subscribe(received);
+    const request = http.expectOne('/api/workspaces/selected-id/kwesties');
+    expect(request.request.method).toBe('GET');
+    expect(request.request.body).toBeNull();
+    expect(request.request.params.keys()).toEqual([]);
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    expect(request.request.withCredentials).toBe(false);
+    const summaries = [{ kwestieId: 'persisted-id', title: 'Printer', description: 'Cannot print',
+      status: 1, priority: 2, createdAt: '2026-10-09T12:00:00Z' }];
+    request.flush(summaries);
+    expect(received).toHaveBeenCalledWith(summaries);
+    http.verify();
+  });
+
   it('posts only the three allowed fields to the selected Workspace and returns the ID', () => {
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
     const service = TestBed.inject(KwestieService);

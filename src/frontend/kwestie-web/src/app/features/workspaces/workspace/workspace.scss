@@ -9,6 +9,7 @@ main { max-width: 1120px; margin: auto; padding: 2.5rem 1rem; }
 h1 { margin: .5rem 0; font-size: clamp(2rem, 5vw, 2.6rem); letter-spacing: -.04em; overflow-wrap: anywhere; }
 h2 { font-size: 1.2rem; margin: 0 0 1.5rem; }
 p { color: #59677e; line-height: 1.5; }
+.workspace-layout { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 2rem; align-items: start; }
 .create-panel { max-width: 680px; padding: clamp(1rem, 4vw, 1.75rem); background: #fff; border: 1px solid #e0e6f0; border-radius: 14px; }
 fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
 label { display: block; font-size: .9rem; font-weight: 650; margin: 1.25rem 0 .5rem; }
@@ -27,4 +28,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .notice { padding: .9rem 1rem; border-radius: 9px; font-size: .9rem; }
 .error { background: #fff1f2; color: #852535; border: 1px solid #f1bec4; }
 .success { background: #ecf7f1; color: #175b39; border: 1px solid #add9c1; }
-@media (max-width: 720px) { main { padding-top: 1.5rem; } }
+.kwestie-list ul { display: grid; gap: 1rem; list-style: none; padding: 0; margin: 0; }
+.kwestie-card, .empty-state { padding: 1.5rem; background: #fff; border: 1px solid #e0e6f0; border-radius: 14px; }
+.kwestie-card h3 { margin: 0 0 .75rem; overflow-wrap: anywhere; }
+.description { white-space: pre-wrap; overflow-wrap: anywhere; }
+.kwestie-labels { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+.status-label, .priority-label { padding: .35rem .6rem; border-radius: 6px; font-size: .82rem; line-height: 1.5; }
+.status-label { background: #eef2ff; color: #234697; }
+.priority-label { background: #f3f6fb; color: #43526b; }
+.created-date { font-size: .85rem; margin: 0; }
+.empty-state { margin: 0; }
+@media (max-width: 800px) {
+  .workspace-layout { grid-template-columns: minmax(0, 1fr); }
+  main { padding-top: 1.5rem; }
+}

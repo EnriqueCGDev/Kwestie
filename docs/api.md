@@ -133,7 +133,7 @@ Errors:
 - **401 Unauthorized** for missing/invalid JWT or missing, malformed, or empty Guid sub.
 - **403 Forbidden**, with an empty body, for CreateKwestieAccessDeniedException. Missing Workspace, foreign user, and inactive membership yield the same response without disclosing the reason.
 
-HTTP/SQL tests use real JWT validation and isolated users/workspaces, verify committed data from a separate context, and clean up their own rows in finally. Angular supports this POST from the individual Workspace screen, with numeric priority and confirmation only; authentication headers come from the existing interceptor. The backend list is implemented below; the Angular Kwestie list, individual Kwestie GET/detail, Categories, assignment, and state-changing endpoints remain unimplemented.
+HTTP/SQL tests use real JWT validation and isolated users/workspaces, verify committed data from a separate context, and clean up their own rows in finally. Angular supports this POST from the individual Workspace screen, with numeric priority and a creation confirmation followed by a server list reload; authentication headers come from the existing interceptor. The backend and Angular list are implemented; individual Kwestie GET/detail, Categories, assignment, and state-changing endpoints remain unimplemented.
 
 ## GET /api/workspaces/{workspaceId}/kwesties
 
@@ -160,4 +160,4 @@ These are the only response fields. Status is numeric: 1 = Open, 2 = InProgress,
 - **404 Not Found**, uniformly empty, for nonexistent Workspace, foreign user, or inactive membership.
 - **400 Bad Request** for an authenticated request with a malformed/non-Guid WorkspaceId, through existing model binding.
 
-Application checks HasActiveMembershipAsync before reading Kwesties; rejected access never invokes the list repository. Infrastructure performs a workspace-filtered, ordered, asynchronous projection without tracking or writes. HTTP/SQL tests cover the real persisted results, empty responses, isolation, order, exact contract, and indistinguishable rejections. Angular listing, individual Kwestie GET, filters/search/pagination, and visible references remain pending. POST creation is unchanged.
+Application checks HasActiveMembershipAsync before reading Kwesties; rejected access never invokes the list repository. Infrastructure performs a workspace-filtered, ordered, asynchronous projection without tracking or writes. HTTP/SQL tests cover the real persisted results, empty responses, isolation, order, exact contract, and indistinguishable rejections. Angular calls this GET after loading the Workspace and after successful creation, preserving the server order. List failures offer a GET-only retry; a failed post-create reload does not clear creation confirmation or repeat POST. Individual Kwestie GET, filters/search/pagination, and visible references remain pending. POST creation is unchanged.

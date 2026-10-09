@@ -1,9 +1,11 @@
+import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, ValidatorFn } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { catchError, distinctUntilChanged, finalize, map, of, startWith, Subject, switchMap, takeUntil } from 'rxjs';
+import { catchError, distinctUntilChanged, EMPTY, finalize, map, of, startWith, Subject, switchMap, takeUntil } from 'rxjs';
+import { KwestieSummary } from '../../kwesties/kwestie.models';
 import { KwestieService } from '../../kwesties/kwestie.service';
 import { WorkspaceSummary } from '../workspace.models';
 import { WorkspaceService } from '../workspace.service';
@@ -12,7 +14,7 @@ const requiredTitle: ValidatorFn = control =>
   typeof control.value === 'string' && control.value.trim() ? null : { required: true };
 
 @Component({
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [DatePipe, ReactiveFormsModule, RouterLink],
   templateUrl: './workspace.html',
   styleUrl: './workspace.scss',
 })
@@ -23,6 +25,7 @@ export class Workspace implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly retryLoad = new Subject<void>();
   private readonly workspaceChanged = new Subject<void>();
+  private readonly reloadList = new Subject<void>();
 
   readonly workspace = signal<WorkspaceSummary | null>(null);
   readonly loading = signal(true);
@@ -31,6 +34,15 @@ export class Workspace implements OnInit {
   readonly creating = signal(false);
   readonly createError = signal<string | null>(null);
   readonly created = signal(false);
+  readonly kwestieList = signal<readonly KwestieSummary[]>([]);
+  readonly listing = signal(false);
+  readonly listError = signal<string | null>(null);
+  readonly statusLabels: Readonly<Record<number, string>> = {
+    1: 'Abierta', 2: 'En progreso', 3: 'Resuelta', 4: 'Cerrada',
+  };
+  readonly priorityLabels: Readonly<Record<number, string>> = {
+    1: 'Baja', 2: 'Normal', 3: 'Alta', 4: 'Crítica',
+  };
   readonly form = new FormGroup({
     title: new FormControl('', { nonNullable: true, validators: requiredTitle }),
     description: new FormControl('', { nonNullable: true }),
@@ -38,11 +50,36 @@ export class Workspace implements OnInit {
   });
 
   ngOnInit(): void {
+    this.reloadList.pipe(
+      switchMap(() => {
+        const workspace = this.workspace();
+        if (!workspace) return EMPTY;
+        this.listing.set(true);
+        this.listError.set(null);
+        return this.kwesties.list(workspace.workspaceId).pipe(
+          map(kwesties => ({ kwesties, error: null })),
+          catchError(() => of({
+            kwesties: null,
+            error: 'No pudimos cargar los asuntos. Inténtalo de nuevo.',
+          })),
+          takeUntil(this.workspaceChanged),
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(result => {
+      if (result.kwesties !== null) this.kwestieList.set(result.kwesties);
+      this.listError.set(result.error);
+      this.listing.set(false);
+    });
+
     this.route.paramMap.pipe(
       map(params => params.get('workspaceId')),
       distinctUntilChanged(),
       switchMap(workspaceId => {
         this.workspaceChanged.next();
+        this.kwestieList.set([]);
+        this.listing.set(false);
+        this.listError.set(null);
         this.form.reset();
         this.created.set(false);
         this.createError.set(null);
@@ -72,11 +109,16 @@ export class Workspace implements OnInit {
       this.loadError.set(result.error);
       this.canRetry.set(result.retry);
       this.loading.set(false);
+      if (result.workspace) this.reloadList.next();
     });
   }
 
   retry(): void {
     if (!this.loading() && this.canRetry()) this.retryLoad.next();
+  }
+
+  retryKwesties(): void {
+    if (!this.listing() && this.listError()) this.reloadList.next();
   }
 
   create(): void {
@@ -96,6 +138,7 @@ export class Workspace implements OnInit {
       next: () => {
         this.form.reset();
         this.created.set(true);
+        this.reloadList.next();
       },
       error: (error: unknown) => this.createError.set(this.createMessage(error)),
     });

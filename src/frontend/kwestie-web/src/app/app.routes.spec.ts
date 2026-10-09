@@ -22,7 +22,7 @@ describe('authentication routes', () => {
     TestBed.configureTestingModule({ providers: [provideRouter(routes), { provide: AuthService, useValue: auth },
       { provide: WorkspaceService, useValue: { list: vi.fn(() => of([])), get: vi.fn((workspaceId: string) => of({
         workspaceId, name: 'Direct workspace', createdAt: '2026-10-08T12:00:00Z',
-      })) } }, { provide: KwestieService, useValue: { create: vi.fn() } }] });
+      })) } }, { provide: KwestieService, useValue: { create: vi.fn(), list: vi.fn(() => of([])) } }] });
   });
 
   it('redirects an unauthenticated root or protected route to login without refreshing', async () => {
