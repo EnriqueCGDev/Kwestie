@@ -29,7 +29,7 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 
 ### Planned
 
-- GET/list Kwesties, a functional dashboard, and automatic refresh after a 401
+- Angular Kwestie listing, individual Kwestie GET, a functional dashboard, and automatic refresh after a 401
 - CORS/frontend configuration according to deployment
 - Docker
 - CI/CD
@@ -38,7 +38,7 @@ Kwestie is also being developed as a public portfolio project focused on maintai
 
 Kwestie is under active development.
 
-InitialCreate, AddIdentity, 20260929220522_AddRefreshTokens, and 20261007152213_AddWorkspaces are applied to the local Kwestie database. Login returns access and refresh tokens with separate UTC expirations, and Refresh rotates the persisted token. The complete Login + Refresh + JWT flow has been validated against SQL Server, including issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. API exposes Register, Login, Refresh, and Logout endpoints. Access tokens are returned as JSON for Bearer use; refresh tokens are sent only in a secure HttpOnly cookie. Angular has Login and Register screens backed by the in-memory authentication service. It attempts one cookie-backed Refresh during startup and attaches the in-memory access token to Kwestie API requests outside `/api/auth/...`. Login navigates to the guarded `/app` route, which lists the user's Workspaces, supports creation and Logout, and reloads the list after creation. Workspace links open the guarded /app/workspaces/:workspaceId screen, which loads the individual Workspace and supports Create Kwestie. GET/list Kwesties, a functional dashboard, automatic refresh after a 401, and deployment-specific CORS remain pending. Authentication is not complete.
+InitialCreate, AddIdentity, 20260929220522_AddRefreshTokens, and 20261007152213_AddWorkspaces are applied to the local Kwestie database. Login returns access and refresh tokens with separate UTC expirations, and Refresh rotates the persisted token. The complete Login + Refresh + JWT flow has been validated against SQL Server, including issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. API exposes Register, Login, Refresh, and Logout endpoints. Access tokens are returned as JSON for Bearer use; refresh tokens are sent only in a secure HttpOnly cookie. Angular has Login and Register screens backed by the in-memory authentication service. It attempts one cookie-backed Refresh during startup and attaches the in-memory access token to Kwestie API requests outside `/api/auth/...`. Login navigates to the guarded `/app` route, which lists the user's Workspaces, supports creation and Logout, and reloads the list after creation. Workspace links open the guarded /app/workspaces/:workspaceId screen, which loads the individual Workspace and supports Create Kwestie. Backend GET /api/workspaces/{workspaceId}/kwesties is implemented. Angular Kwestie listing, individual Kwestie GET, a functional dashboard, automatic refresh after a 401, and deployment-specific CORS remain pending. Authentication is not complete.
 
 Implemented so far:
 
@@ -48,10 +48,10 @@ Implemented so far:
 - Initial `Kwestie` entity
 - `Open -> InProgress -> Resolved -> Closed` lifecycle
 - Unit tests for the current domain behavior
-- Create Kwestie application use case, protected POST /api/workspaces/{workspaceId}/kwesties, and unit/HTTP/SQL tests
+- Create/List Kwesties application use cases, protected POST/GET /api/workspaces/{workspaceId}/kwesties, and unit/HTTP/SQL tests
 - Workspace/WorkspaceMember models, Create Workspace with initial Admin membership, EF SQL Server mappings, scoped repository, and persistence tests; AddWorkspaces is applied manually locally and real SQL persistence/atomicity is validated; protected POST/GET /api/workspaces and GET /api/workspaces/{workspaceId} are implemented, with reads limited to active memberships; listing/creation UI and individual Workspace navigation are implemented; membership management remains pending
 
-Create Kwestie has an Infrastructure repository implementation using EF Core and SQL Server. `InitialCreate` exists and was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, generated Number, retrieval, and cleanup. Application now requires an existing Workspace and an active creator membership, allowing both Admin and Member. Protected POST /api/workspaces/{workspaceId}/kwesties is implemented with the existing Application handler; Angular supports Create Kwestie from the selected Workspace; Categories, their compatibility checks, GET/list Kwesties, and individual Kwestie detail remain unimplemented.
+Create Kwestie has an Infrastructure repository implementation using EF Core and SQL Server. `InitialCreate` exists and was applied locally to the existing `Kwestie` database. A real repository round-trip test verifies insertion, generated Number, retrieval, and cleanup. Application now requires an existing Workspace and an active creator membership, allowing both Admin and Member. Protected POST /api/workspaces/{workspaceId}/kwesties is implemented with the existing Application handler; Angular supports Create Kwestie from the selected Workspace. Backend listing uses an ordered, workspace-filtered projection after active-membership validation. Categories, their compatibility checks, Angular Kwestie listing, individual Kwestie GET/detail, and visible Number/Key references remain pending.
 
 Full authentication is not implemented yet. Automatic refresh after a 401, assignment, comments, history, search, and dashboard functionality remain pending.
 
@@ -139,7 +139,7 @@ dotnet build
 dotnet test
 ```
 
-Domain and Application tests require no SQL Server or Infrastructure. IntegrationTests includes database-free EF, JWT, and refresh mapping/configuration checks, alongside real SQL tests. Full dotnet test requires InitialCreate, AddIdentity, AddRefreshTokens, and AddWorkspaces applied to the local Kwestie database and ConnectionStrings:Kwestie in shared API User Secrets. All four migrations are applied manually locally. The full suite passed on 2026-10-08: 174 tests, 174 passed, 0 failed, 0 skipped, including real Workspace persistence/atomicity, protected Workspace list/individual HTTP isolation, Create Kwestie HTTP contracts/persistence, and authentication HTTP/SQL tests. Tests never create the database or apply migrations; they clean up only their own data in finally.
+Domain and Application tests require no SQL Server or Infrastructure. IntegrationTests includes database-free EF, JWT, and refresh mapping/configuration checks, alongside real SQL tests. Full dotnet test requires InitialCreate, AddIdentity, AddRefreshTokens, and AddWorkspaces applied to the local Kwestie database and ConnectionStrings:Kwestie in shared API User Secrets. All four migrations are applied manually locally. The full suite passed on 2026-10-09: 187 tests, 187 passed, 0 failed, 0 skipped, including real Workspace persistence/atomicity, protected Workspace list/individual HTTP isolation, Create Kwestie HTTP contracts/persistence, persisted Kwestie listing/isolation/order, and authentication HTTP/SQL tests. Tests never create the database or apply migrations; they clean up only their own data in finally.
 
 Workspace mappings, materialization, DI, and repository save/cancellation behavior pass database-free checks. Real Workspace persistence and atomicity also passed against the local SQL Server database with AddWorkspaces applied. HasPendingModelChanges() is false. See [Infrastructure validation](docs/infrastructure.md#migrations) for the current results.
 

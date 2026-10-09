@@ -133,4 +133,31 @@ Errors:
 - **401 Unauthorized** for missing/invalid JWT or missing, malformed, or empty Guid sub.
 - **403 Forbidden**, with an empty body, for CreateKwestieAccessDeniedException. Missing Workspace, foreign user, and inactive membership yield the same response without disclosing the reason.
 
-HTTP/SQL tests use real JWT validation and isolated users/workspaces, verify committed data from a separate context, and clean up their own rows in finally. Angular supports this POST from the individual Workspace screen, with numeric priority and confirmation only; authentication headers come from the existing interceptor. GET/list Kwesties, individual Kwestie detail, Categories, assignment, and state-changing endpoints remain unimplemented.
+HTTP/SQL tests use real JWT validation and isolated users/workspaces, verify committed data from a separate context, and clean up their own rows in finally. Angular supports this POST from the individual Workspace screen, with numeric priority and confirmation only; authentication headers come from the existing interceptor. The backend list is implemented below; the Angular Kwestie list, individual Kwestie GET/detail, Categories, assignment, and state-changing endpoints remain unimplemented.
+
+## GET /api/workspaces/{workspaceId}/kwesties
+
+Requires a valid Bearer JWT and a non-empty Guid sub. WorkspaceId comes exclusively from the route and UserId from the validated subject, following the existing Workspace identity rules. Active Admin and Member memberships are permitted.
+
+**200 OK** returns persisted Kwesties ordered by CreatedAt ascending, then Id ascending. An accessible Workspace without Kwesties returns `[]`.
+
+```json
+[
+  {
+    "kwestieId": "550e8400-e29b-41d4-a716-446655440000",
+    "title": "Impresora descompuesta",
+    "description": "No imprime",
+    "status": 1,
+    "priority": 2,
+    "createdAt": "2026-10-09T12:00:00Z"
+  }
+]
+```
+
+These are the only response fields. Status is numeric: 1 = Open, 2 = InProgress, 3 = Resolved, 4 = Closed. Priority retains 1 = Low, 2 = Normal, 3 = High, 4 = Critical. No global enum serialization is changed. Number, Key, creator/assignee/category IDs, and other technical fields are excluded; visible Number/Key references remain undefined.
+
+- **401 Unauthorized** for missing/invalid JWT or missing, malformed, or empty Guid sub.
+- **404 Not Found**, uniformly empty, for nonexistent Workspace, foreign user, or inactive membership.
+- **400 Bad Request** for an authenticated request with a malformed/non-Guid WorkspaceId, through existing model binding.
+
+Application checks HasActiveMembershipAsync before reading Kwesties; rejected access never invokes the list repository. Infrastructure performs a workspace-filtered, ordered, asynchronous projection without tracking or writes. HTTP/SQL tests cover the real persisted results, empty responses, isolation, order, exact contract, and indistinguishable rejections. Angular listing, individual Kwestie GET, filters/search/pagination, and visible references remain pending. POST creation is unchanged.
