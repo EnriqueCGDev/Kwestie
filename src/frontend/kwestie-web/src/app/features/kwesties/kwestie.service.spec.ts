@@ -4,6 +4,28 @@ import { TestBed } from '@angular/core/testing';
 import { KwestieService } from './kwestie.service';
 
 describe('KwestieService', () => {
+  it.each([
+    ['workspace-id', 'kwestie-id', '/api/workspaces/workspace-id/kwesties/kwestie-id'],
+    ['workspace/id', 'kwestie?id', '/api/workspaces/workspace%2Fid/kwesties/kwestie%3Fid'],
+  ])('gets individual details using both encoded identifiers: %s, %s', (workspaceId, kwestieId, url) => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const service = TestBed.inject(KwestieService);
+    const http = TestBed.inject(HttpTestingController);
+    const received = vi.fn();
+    service.get(workspaceId, kwestieId).subscribe(received);
+    const request = http.expectOne(url);
+    expect(request.request.method).toBe('GET');
+    expect(request.request.body).toBeNull();
+    expect(request.request.params.keys()).toEqual([]);
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    expect(request.request.withCredentials).toBe(false);
+    const details = { kwestieId, title: 'Printer', description: 'Cannot print', status: 1, priority: 2,
+      createdAt: '2026-10-09T12:00:00Z', updatedAt: '2026-10-09T12:00:00Z', resolvedAt: null, closedAt: null };
+    request.flush(details);
+    expect(received).toHaveBeenCalledWith(details);
+    http.verify();
+  });
+
   it('gets persisted summaries from the selected Workspace without adding identity or authentication headers', () => {
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
     const service = TestBed.inject(KwestieService);

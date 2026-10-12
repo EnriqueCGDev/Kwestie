@@ -16,6 +16,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/workspaces/workspace/workspace').then(module => module.Workspace),
   },
   {
+    path: 'app/workspaces/:workspaceId/kwesties/:kwestieId',
+    title: 'Asunto · Kwestie',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/kwesties/kwestie/kwestie').then(module => module.Kwestie),
+  },
+  {
     path: 'login',
     title: 'Iniciar sesión · Kwestie',
     loadComponent: () => import('./features/auth/login/login').then(module => module.Login),

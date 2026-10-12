@@ -66,7 +66,7 @@
             <ul>
               @for (kwestie of kwestieList(); track kwestie.kwestieId) {
                 <li class="kwestie-card">
-                  <h3>{{ kwestie.title }}</h3>
+                  <h3><a [routerLink]="['/app/workspaces', selected.workspaceId, 'kwesties', kwestie.kwestieId]">{{ kwestie.title }}</a></h3>
                   @if (kwestie.description) {
                     <p class="description">{{ kwestie.description }}</p>
                   }

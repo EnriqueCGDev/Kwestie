@@ -10,6 +10,7 @@ import { Workspaces } from './features/workspaces/workspaces';
 import { WorkspaceService } from './features/workspaces/workspace.service';
 import { Workspace } from './features/workspaces/workspace/workspace';
 import { KwestieService } from './features/kwesties/kwestie.service';
+import { Kwestie } from './features/kwesties/kwestie/kwestie';
 import { routes } from './app.routes';
 
 describe('authentication routes', () => {
@@ -22,7 +23,12 @@ describe('authentication routes', () => {
     TestBed.configureTestingModule({ providers: [provideRouter(routes), { provide: AuthService, useValue: auth },
       { provide: WorkspaceService, useValue: { list: vi.fn(() => of([])), get: vi.fn((workspaceId: string) => of({
         workspaceId, name: 'Direct workspace', createdAt: '2026-10-08T12:00:00Z',
-      })) } }, { provide: KwestieService, useValue: { create: vi.fn(), list: vi.fn(() => of([])) } }] });
+      })) } }, { provide: KwestieService, useValue: {
+        create: vi.fn(), list: vi.fn(() => of([])), get: vi.fn((_workspaceId: string, kwestieId: string) => of({
+          kwestieId, title: 'Direct issue', description: 'Server description', status: 1, priority: 2,
+          createdAt: '2026-10-09T12:00:00Z', updatedAt: '2026-10-09T12:00:00Z', resolvedAt: null, closedAt: null,
+        })),
+      } }] });
   });
 
   it('redirects an unauthenticated root or protected route to login without refreshing', async () => {
@@ -31,6 +37,53 @@ describe('authentication routes', () => {
     expect(TestBed.inject(Router).url).toBe('/login');
     expect(await harness.navigateByUrl('/app', Login)).toBeInstanceOf(Login);
     expect(await harness.navigateByUrl('/app/workspaces/selected-id', Login)).toBeInstanceOf(Login);
+    expect(await harness.navigateByUrl('/app/workspaces/selected-id/kwesties/issue-id', Login)).toBeInstanceOf(Login);
+    expect(TestBed.inject(KwestieService).get).not.toHaveBeenCalled();
+    expect(auth.refresh).not.toHaveBeenCalled();
+  });
+
+  it('allows direct detail entry and recreation without prior Workspace or list data', async () => {
+    authenticated.set(true);
+    const harness = await RouterTestingHarness.create();
+    const service = TestBed.inject(KwestieService);
+    const workspaces = TestBed.inject(WorkspaceService);
+    const first = await harness.navigateByUrl('/app/workspaces/direct-workspace/kwesties/direct-issue', Kwestie);
+    expect(first.details()?.title).toBe('Direct issue');
+    expect(service.get).toHaveBeenCalledExactlyOnceWith('direct-workspace', 'direct-issue');
+    expect(harness.routeNativeElement?.querySelector('header a')?.getAttribute('href')).toBe('/app/workspaces/direct-workspace');
+    await harness.navigateByUrl('/login', Login);
+    const second = await harness.navigateByUrl('/app/workspaces/direct-workspace/kwesties/direct-issue', Kwestie);
+    expect(second).not.toBe(first);
+    expect(second.details()?.kwestieId).toBe('direct-issue');
+    expect(service.get).toHaveBeenCalledTimes(2);
+    expect(service.list).not.toHaveBeenCalled();
+    expect(workspaces.get).not.toHaveBeenCalled();
+    expect(workspaces.list).not.toHaveBeenCalled();
+    expect(auth.refresh).not.toHaveBeenCalled();
+  });
+
+  it('navigates from a listed issue title into detail and back to its Workspace', async () => {
+    authenticated.set(true);
+    const service = TestBed.inject(KwestieService);
+    vi.mocked(service.list).mockReturnValue(of([{
+      kwestieId: 'listed-issue', title: 'Listed issue', description: '', status: 1, priority: 2,
+      createdAt: '2026-10-09T12:00:00Z',
+    }]));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/app/workspaces/list-workspace', Workspace);
+    const link = harness.routeNativeElement?.querySelector<HTMLAnchorElement>('.kwestie-card h3 a');
+    expect(link?.textContent).toBe('Listed issue');
+    link!.click();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(TestBed.inject(Router).url).toBe('/app/workspaces/list-workspace/kwesties/listed-issue');
+    expect(service.get).toHaveBeenCalledExactlyOnceWith('list-workspace', 'listed-issue');
+    expect(harness.routeNativeElement?.querySelector('h1')?.textContent).toBe('Direct issue');
+    harness.routeNativeElement?.querySelector<HTMLAnchorElement>('header a')?.click();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(TestBed.inject(Router).url).toBe('/app/workspaces/list-workspace');
+    expect(harness.routeNativeElement?.querySelector('.kwestie-list')).not.toBeNull();
     expect(auth.refresh).not.toHaveBeenCalled();
   });
 

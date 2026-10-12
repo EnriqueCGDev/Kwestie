@@ -1,0 +1,61 @@
+<div class="kwestie-page">
+  <header class="app-header">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">K</span><span>Kwestie</span></div>
+    @if (workspaceId(); as id) {
+      <a [routerLink]="['/app/workspaces', id]">Volver al Workspace</a>
+    } @else {
+      <a routerLink="/app">Volver a Workspaces</a>
+    }
+  </header>
+  <main [attr.aria-busy]="loading()">
+    @if (loading()) {
+      <p role="status">Cargando asunto…</p>
+    }
+    @if (error(); as failure) {
+      <h1>Asunto</h1>
+      <p class="notice error" role="alert">{{ failure.message }}</p>
+      @if (failure.retry) {
+        <button type="button" (click)="retry()" [disabled]="loading()">Reintentar</button>
+      }
+    }
+    @if (details(); as kwestie) {
+      <article class="details-panel" aria-labelledby="kwestie-title">
+        <p class="eyebrow">ASUNTO DEL WORKSPACE</p>
+        <h1 id="kwestie-title">{{ kwestie.title }}</h1>
+        @if (kwestie.description) {
+          <p class="description">{{ kwestie.description }}</p>
+        }
+        <dl>
+          <div>
+            <dt>Estado</dt>
+            <dd class="status-label">{{ statusLabels[kwestie.status] ?? 'Desconocido' }}</dd>
+          </div>
+          <div>
+            <dt>Prioridad</dt>
+            <dd class="priority-label">{{ priorityLabels[kwestie.priority] ?? 'Desconocida' }}</dd>
+          </div>
+          <div>
+            <dt>Creación</dt>
+            <dd><time [attr.datetime]="kwestie.createdAt">{{ kwestie.createdAt | date:'dd/MM/yyyy, HH:mm' }}</time></dd>
+          </div>
+          <div>
+            <dt>Última actualización</dt>
+            <dd><time [attr.datetime]="kwestie.updatedAt">{{ kwestie.updatedAt | date:'dd/MM/yyyy, HH:mm' }}</time></dd>
+          </div>
+          @if (kwestie.resolvedAt; as resolvedAt) {
+            <div>
+              <dt>Resolución</dt>
+              <dd><time [attr.datetime]="resolvedAt">{{ resolvedAt | date:'dd/MM/yyyy, HH:mm' }}</time></dd>
+            </div>
+          }
+          @if (kwestie.closedAt; as closedAt) {
+            <div>
+              <dt>Cierre</dt>
+              <dd><time [attr.datetime]="closedAt">{{ closedAt | date:'dd/MM/yyyy, HH:mm' }}</time></dd>
+            </div>
+          }
+        </dl>
+      </article>
+    }
+  </main>
+</div>

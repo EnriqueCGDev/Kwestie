@@ -240,10 +240,11 @@ describe('Workspace', () => {
     ]);
     expect(cards[0].querySelector('.description')).toBeNull();
     expect(cards[1].querySelector('.description')?.textContent).toContain('Server description');
-    for (const card of cards) {
+    for (const [index, card] of cards.entries()) {
       expect(card.querySelector('time')?.textContent).toMatch(/09\/10\/2026, \d{2}:\d{2}/);
       expect(card.querySelector('time')?.getAttribute('datetime')).toBe(persisted.createdAt);
-      expect(card.querySelector('a')).toBeNull();
+      expect(card.querySelector('a')?.getAttribute('href')).toBe(`/app/workspaces/selected-id/kwesties/${values[index].kwestieId}`);
+      expect(card.querySelector('a')?.textContent).toBe(values[index].title);
     }
     expect(fixture.nativeElement.textContent).not.toContain('id-four');
     expect(fixture.nativeElement.textContent).not.toContain('KW-');

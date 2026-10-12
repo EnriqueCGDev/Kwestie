@@ -16,3 +16,9 @@ export interface KwestieSummary {
   priority: number;
   createdAt: string;
 }
+
+export interface KwestieDetails extends KwestieSummary {
+  updatedAt: string;
+  resolvedAt: string | null;
+  closedAt: string | null;
+}

@@ -1,0 +1,27 @@
+:host { display: block; }
+.kwestie-page { min-height: 100vh; min-height: 100dvh; background: #f3f6fb; }
+.app-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding: 1rem max(1rem, calc((100% - 1120px) / 2)); background: #fff; border-bottom: 1px solid #e0e6f0; }
+.brand { display: flex; align-items: center; gap: .7rem; font-size: 1.1rem; font-weight: 750; }
+.brand-mark { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 10px; color: #fff; background: #234697; }
+main { max-width: 1120px; margin: auto; padding: 2.5rem 1rem; }
+.details-panel { max-width: 800px; padding: clamp(1.25rem, 4vw, 2rem); background: #fff; border: 1px solid #e0e6f0; border-radius: 14px; }
+.eyebrow { color: #3157b7; font-size: .72rem; font-weight: 750; letter-spacing: .13em; margin-top: 0; }
+h1 { margin: .5rem 0 1.5rem; font-size: clamp(1.8rem, 5vw, 2.5rem); letter-spacing: -.04em; overflow-wrap: anywhere; }
+p { color: #59677e; line-height: 1.6; }
+.description { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 2rem; }
+dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; margin: 0; }
+dt { font-size: .85rem; font-weight: 650; color: #59677e; margin-bottom: .5rem; }
+dd { margin: 0; overflow-wrap: anywhere; }
+.status-label, .priority-label { display: inline-block; padding: .35rem .6rem; border-radius: 6px; font-size: .9rem; line-height: 1.5; }
+.status-label { background: #eef2ff; color: #234697; }
+.priority-label { background: #f3f6fb; color: #43526b; }
+.notice { padding: .9rem 1rem; border-radius: 9px; }
+.error { background: #fff1f2; color: #852535; border: 1px solid #f1bec4; }
+button { min-height: 44px; padding: .7rem 1rem; border-radius: 9px; font-weight: 700; color: #234697; background: #fff; border: 1px solid #a7b3c5; cursor: pointer; }
+button:hover:not(:disabled) { background: #eef2ff; }
+button:disabled { opacity: .65; cursor: wait; }
+button:focus-visible, a:focus-visible { outline: 3px solid #f4b443; outline-offset: 2px; }
+@media (max-width: 540px) {
+  main { padding-top: 1.5rem; }
+  dl { grid-template-columns: minmax(0, 1fr); }
+}

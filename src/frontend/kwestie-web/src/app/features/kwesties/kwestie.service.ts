@@ -1,10 +1,16 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Service } from '@angular/core';
-import { CreateKwestieRequest, CreateKwestieResponse, KwestieSummary } from './kwestie.models';
+import { CreateKwestieRequest, CreateKwestieResponse, KwestieDetails, KwestieSummary } from './kwestie.models';
 
 @Service()
 export class KwestieService {
   private readonly http = inject(HttpClient);
+
+  get(workspaceId: string, kwestieId: string) {
+    return this.http.get<KwestieDetails>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/kwesties/${encodeURIComponent(kwestieId)}`,
+    );
+  }
 
   list(workspaceId: string) {
     return this.http.get<KwestieSummary[]>(`/api/workspaces/${encodeURIComponent(workspaceId)}/kwesties`);
