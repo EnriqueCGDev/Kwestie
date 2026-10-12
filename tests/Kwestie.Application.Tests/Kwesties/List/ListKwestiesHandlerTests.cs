@@ -1,4 +1,5 @@
 using Kwestie.Application.Kwesties;
+using Kwestie.Application.Kwesties.Get;
 using Kwestie.Application.Kwesties.List;
 using Kwestie.Application.Workspaces;
 using Kwestie.Domain.Kwesties;
@@ -135,6 +136,9 @@ public class ListKwestiesHandlerTests
 
     private sealed class RecordingRepository : IKwestieRepository
     {
+        public Task<KwestieDetails?> GetForWorkspaceAsync(
+            Guid workspaceId, Guid kwestieId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public int ListCalls { get; private set; }
         public Guid ReceivedWorkspaceId { get; private set; }
         public CancellationToken ReceivedCancellationToken { get; private set; }

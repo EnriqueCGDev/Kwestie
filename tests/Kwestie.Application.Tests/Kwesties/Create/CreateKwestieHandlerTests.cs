@@ -1,5 +1,6 @@
 using Kwestie.Application.Kwesties;
 using Kwestie.Application.Kwesties.Create;
+using Kwestie.Application.Kwesties.Get;
 using Kwestie.Application.Kwesties.List;
 using Kwestie.Application.Workspaces;
 using Kwestie.Domain.Common;
@@ -161,6 +162,9 @@ public class CreateKwestieHandlerTests
 
     private sealed class RecordingRepository : IKwestieRepository
     {
+        public Task<KwestieDetails?> GetForWorkspaceAsync(
+            Guid workspaceId, Guid kwestieId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<IReadOnlyList<KwestieSummary>> ListForWorkspaceAsync(
             Guid workspaceId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 

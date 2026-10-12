@@ -1,3 +1,4 @@
+using Kwestie.Application.Kwesties.Get;
 using Kwestie.Application.Kwesties.List;
 using KwestieEntity = Kwestie.Domain.Kwesties.Kwestie;
 
@@ -9,4 +10,7 @@ public interface IKwestieRepository
 
     Task<IReadOnlyList<KwestieSummary>> ListForWorkspaceAsync(
         Guid workspaceId, CancellationToken cancellationToken = default);
+
+    Task<KwestieDetails?> GetForWorkspaceAsync(
+        Guid workspaceId, Guid kwestieId, CancellationToken cancellationToken = default);
 }

@@ -41,6 +41,8 @@ public sealed class KwestieHttpTests(AuthenticationApiFactory factory) : IClassF
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         using var listResponse = await client.GetAsync(Path(Guid.NewGuid()));
         Assert.Equal(HttpStatusCode.Unauthorized, listResponse.StatusCode);
+        using var getResponse = await client.GetAsync(DetailPath(Guid.NewGuid(), Guid.NewGuid()));
+        Assert.Equal(HttpStatusCode.Unauthorized, getResponse.StatusCode);
     }
 
     [Theory]
@@ -57,6 +59,173 @@ public sealed class KwestieHttpTests(AuthenticationApiFactory factory) : IClassF
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         using var listResponse = await client.GetAsync(Path(Guid.NewGuid()));
         Assert.Equal(HttpStatusCode.Unauthorized, listResponse.StatusCode);
+        using var getResponse = await client.GetAsync(DetailPath(Guid.NewGuid(), Guid.NewGuid()));
+        Assert.Equal(HttpStatusCode.Unauthorized, getResponse.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(WorkspaceRole.Admin)]
+    [InlineData(WorkspaceRole.Member)]
+    public async Task Get_ActiveMember_ReturnsPersistedDetailsAndNullableDatesWithoutWrites(WorkspaceRole role)
+    {
+        using var client = _factory.CreateHttpsClient();
+        var email = UniqueEmail();
+        var workspaceIds = new List<Guid>();
+        try
+        {
+            var userId = await AuthenticateAsync(client, email);
+            var workspaceId = await CreateWorkspaceAsync(client, workspaceIds);
+            var now = new DateTimeOffset(2026, 10, 12, 12, 0, 0, TimeSpan.Zero);
+            var open = new KwestieEntity(Guid.NewGuid(), workspaceId, "Open printer issue", "Cannot print",
+                KwestiePriority.Normal, userId, now);
+            var closed = new KwestieEntity(Guid.NewGuid(), workspaceId, "Closed printer issue", "Printer fixed",
+                KwestiePriority.Critical, userId, now);
+            closed.StartProgress(now.AddHours(1));
+            closed.Resolve(now.AddHours(2));
+            closed.Close(now.AddHours(3));
+            await using (var seedScope = _factory.Services.CreateAsyncScope())
+            {
+                var context = seedScope.ServiceProvider.GetRequiredService<KwestieDbContext>();
+                if (role == WorkspaceRole.Member)
+                    await context.WorkspaceMembers.Where(m => m.WorkspaceId == workspaceId && m.UserId == userId)
+                        .ExecuteUpdateAsync(setters => setters.SetProperty(m => m.Role, WorkspaceRole.Member));
+                var repository = seedScope.ServiceProvider.GetRequiredService<IKwestieRepository>();
+                await repository.AddAsync(open);
+                await repository.AddAsync(closed);
+            }
+
+            await using var readScope = _factory.Services.CreateAsyncScope();
+            var readContext = readScope.ServiceProvider.GetRequiredService<KwestieDbContext>();
+            Assert.False(readContext.Database.HasPendingModelChanges());
+            var before = JsonSerializer.Serialize(await readContext.Kwesties.AsNoTracking()
+                .Where(k => k.WorkspaceId == workspaceId).OrderBy(k => k.Id).ToArrayAsync());
+            Assert.Equal(2, await readContext.Kwesties.CountAsync(k => k.WorkspaceId == workspaceId));
+            var spoofedId = Guid.NewGuid();
+            client.DefaultRequestHeaders.Add("UserId", spoofedId.ToString());
+            client.DefaultRequestHeaders.Add("WorkspaceId", spoofedId.ToString());
+            client.DefaultRequestHeaders.Add("KwestieId", spoofedId.ToString());
+            foreach (var kwestie in new[] { open, closed })
+            {
+                using var response = await client.GetAsync(
+                    $"{DetailPath(workspaceId, kwestie.Id)}?userId={spoofedId}&workspaceId={spoofedId}&kwestieId={spoofedId}");
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                var actual = await response.Content.ReadFromJsonAsync<KwestieDetailsResponse>();
+                var expected = new KwestieDetailsResponse(kwestie.Id, kwestie.Title, kwestie.Description,
+                    (int)kwestie.Status, (int)kwestie.Priority, kwestie.CreatedAt,
+                    kwestie.UpdatedAt, kwestie.ResolvedAt, kwestie.ClosedAt);
+                Assert.Equal(expected, actual);
+                using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                Assert.Equal(["kwestieId", "title", "description", "status", "priority", "createdAt",
+                    "updatedAt", "resolvedAt", "closedAt"], json.RootElement.EnumerateObject().Select(p => p.Name).ToArray());
+                Assert.Equal(JsonValueKind.Number, json.RootElement.GetProperty("status").ValueKind);
+                Assert.Equal(JsonValueKind.Number, json.RootElement.GetProperty("priority").ValueKind);
+                Assert.Equal(kwestie.CreatedAt, json.RootElement.GetProperty("createdAt").GetDateTimeOffset());
+                Assert.Equal(kwestie.UpdatedAt, json.RootElement.GetProperty("updatedAt").GetDateTimeOffset());
+                foreach (var (name, value) in new[] { ("resolvedAt", kwestie.ResolvedAt), ("closedAt", kwestie.ClosedAt) })
+                {
+                    if (value is null)
+                        Assert.Equal(JsonValueKind.Null, json.RootElement.GetProperty(name).ValueKind);
+                    else
+                        Assert.Equal(value.Value, json.RootElement.GetProperty(name).GetDateTimeOffset());
+                }
+            }
+
+            var reader = readScope.ServiceProvider.GetRequiredService<IKwestieRepository>();
+            using var cancellation = new CancellationTokenSource();
+            var details = await reader.GetForWorkspaceAsync(workspaceId, closed.Id, cancellation.Token);
+            Assert.NotNull(details);
+            Assert.Equal(closed.Id, details.KwestieId);
+            Assert.Equal(closed.UpdatedAt, details.UpdatedAt);
+            Assert.Null(await reader.GetForWorkspaceAsync(Guid.NewGuid(), closed.Id));
+            Assert.Null(await reader.GetForWorkspaceAsync(workspaceId, Guid.NewGuid()));
+            Assert.Empty(readContext.ChangeTracker.Entries());
+            var after = JsonSerializer.Serialize(await readContext.Kwesties.AsNoTracking()
+                .Where(k => k.WorkspaceId == workspaceId).OrderBy(k => k.Id).ToArrayAsync());
+            Assert.Equal(before, after);
+            await cancellation.CancelAsync();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                reader.GetForWorkspaceAsync(workspaceId, closed.Id, cancellation.Token));
+        }
+        finally
+        {
+            await CleanupAsync([email], workspaceIds);
+        }
+    }
+
+    [Fact]
+    public async Task Get_UnavailableCases_ReturnIdenticalEmptyNotFoundAndMalformedGuidsReturnBadRequest()
+    {
+        using var client = _factory.CreateHttpsClient();
+        using var otherClient = _factory.CreateHttpsClient();
+        var email = UniqueEmail();
+        var otherEmail = UniqueEmail();
+        var workspaceIds = new List<Guid>();
+        try
+        {
+            var userId = await AuthenticateAsync(client, email);
+            var otherUserId = await AuthenticateAsync(otherClient, otherEmail);
+            var workspaceId = await CreateWorkspaceAsync(client, workspaceIds);
+            var inactiveId = await CreateWorkspaceAsync(client, workspaceIds);
+            var foreignWorkspaceId = await CreateWorkspaceAsync(otherClient, workspaceIds);
+            var own = new KwestieEntity(Guid.NewGuid(), workspaceId, "Own issue", "Own description",
+                KwestiePriority.Normal, userId, DateTimeOffset.UtcNow);
+            var inactive = new KwestieEntity(Guid.NewGuid(), inactiveId, "Inactive issue", "Inactive description",
+                KwestiePriority.Normal, userId, DateTimeOffset.UtcNow);
+            var foreign = new KwestieEntity(Guid.NewGuid(), foreignWorkspaceId, "Foreign issue", "Private description",
+                KwestiePriority.Normal, otherUserId, DateTimeOffset.UtcNow);
+            await using (var seedScope = _factory.Services.CreateAsyncScope())
+            {
+                var repository = seedScope.ServiceProvider.GetRequiredService<IKwestieRepository>();
+                foreach (var kwestie in new[] { own, inactive, foreign })
+                    await repository.AddAsync(kwestie);
+                await seedScope.ServiceProvider.GetRequiredService<KwestieDbContext>().WorkspaceMembers
+                    .Where(m => m.WorkspaceId == inactiveId && m.UserId == userId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(m => m.IsActive, false));
+            }
+
+            await using var readScope = _factory.Services.CreateAsyncScope();
+            var context = readScope.ServiceProvider.GetRequiredService<KwestieDbContext>();
+            var missingWorkspaceId = Guid.NewGuid();
+            var missingKwestieId = Guid.NewGuid();
+            Assert.False(await context.Workspaces.AnyAsync(w => w.Id == missingWorkspaceId));
+            Assert.False(await context.Kwesties.AnyAsync(k => k.Id == missingKwestieId));
+            var before = JsonSerializer.Serialize(await context.Kwesties.AsNoTracking()
+                .Where(k => workspaceIds.Contains(k.WorkspaceId)).OrderBy(k => k.Id).ToArrayAsync());
+            var responses = new List<(HttpStatusCode Status, string? ContentType, string Body)>();
+            foreach (var (requestedWorkspace, requestedKwestie) in new[]
+            {
+                (missingWorkspaceId, own.Id), (foreignWorkspaceId, foreign.Id), (inactiveId, inactive.Id),
+                (workspaceId, missingKwestieId), (workspaceId, foreign.Id)
+            })
+            {
+                using var response = await client.GetAsync(DetailPath(requestedWorkspace, requestedKwestie));
+                responses.Add((response.StatusCode, response.Content.Headers.ContentType?.ToString(),
+                    await response.Content.ReadAsStringAsync()));
+            }
+            Assert.All(responses, response =>
+            {
+                Assert.Equal(HttpStatusCode.NotFound, response.Status);
+                Assert.Equal(string.Empty, response.Body);
+                Assert.Equal(responses[0], response);
+            });
+            foreach (var path in new[]
+            {
+                $"/api/workspaces/not-a-guid/kwesties/{own.Id}",
+                $"{Path(workspaceId)}/not-a-guid", "/api/workspaces/not-a-guid/kwesties/not-a-guid"
+            })
+            {
+                using var response = await client.GetAsync(path);
+                Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+                Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+            }
+            var after = JsonSerializer.Serialize(await context.Kwesties.AsNoTracking()
+                .Where(k => workspaceIds.Contains(k.WorkspaceId)).OrderBy(k => k.Id).ToArrayAsync());
+            Assert.Equal(before, after);
+        }
+        finally
+        {
+            await CleanupAsync([email, otherEmail], workspaceIds);
+        }
     }
 
     [Theory]
@@ -425,5 +594,6 @@ public sealed class KwestieHttpTests(AuthenticationApiFactory factory) : IClassF
 
     private static CreateKwestieRequest ValidRequest() => new("Printer", "Cannot print", KwestiePriority.Normal);
     private static string Path(Guid workspaceId) => $"/api/workspaces/{workspaceId}/kwesties";
+    private static string DetailPath(Guid workspaceId, Guid kwestieId) => $"{Path(workspaceId)}/{kwestieId}";
     private static string UniqueEmail() => $"KwestieHttp-{Guid.NewGuid():N}@example.com";
 }

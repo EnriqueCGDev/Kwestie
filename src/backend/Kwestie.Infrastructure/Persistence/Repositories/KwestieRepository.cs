@@ -1,4 +1,5 @@
 using Kwestie.Application.Kwesties;
+using Kwestie.Application.Kwesties.Get;
 using Kwestie.Application.Kwesties.List;
 using Microsoft.EntityFrameworkCore;
 using KwestieEntity = Kwestie.Domain.Kwesties.Kwestie;
@@ -24,5 +25,16 @@ public sealed class KwestieRepository(KwestieDbContext context) : IKwestieReposi
             .Select(kwestie => new KwestieSummary(
                 kwestie.Id, kwestie.Title, kwestie.Description, kwestie.Status, kwestie.Priority, kwestie.CreatedAt))
             .ToListAsync(cancellationToken);
+    }
+
+    public Task<KwestieDetails?> GetForWorkspaceAsync(
+        Guid workspaceId, Guid kwestieId, CancellationToken cancellationToken = default)
+    {
+        return _context.Kwesties.AsNoTracking()
+            .Where(kwestie => kwestie.WorkspaceId == workspaceId && kwestie.Id == kwestieId)
+            .Select(kwestie => new KwestieDetails(
+                kwestie.Id, kwestie.Title, kwestie.Description, kwestie.Status, kwestie.Priority,
+                kwestie.CreatedAt, kwestie.UpdatedAt, kwestie.ResolvedAt, kwestie.ClosedAt))
+            .SingleOrDefaultAsync(cancellationToken);
     }
 }

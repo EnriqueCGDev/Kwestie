@@ -1,5 +1,6 @@
 using Kwestie.Api.Contracts.Kwesties;
 using Kwestie.Application.Kwesties.Create;
+using Kwestie.Application.Kwesties.Get;
 using Kwestie.Application.Kwesties.List;
 using Kwestie.Domain.Common;
 using Microsoft.AspNetCore.Authorization;
@@ -10,10 +11,31 @@ namespace Kwestie.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/workspaces/{workspaceId}/kwesties")]
-public sealed class KwestiesController(CreateKwestieHandler create, ListKwestiesHandler list) : ControllerBase
+public sealed class KwestiesController(
+    CreateKwestieHandler create, ListKwestiesHandler list, GetKwestieHandler get) : ControllerBase
 {
     private readonly CreateKwestieHandler _create = create;
     private readonly ListKwestiesHandler _list = list;
+    private readonly GetKwestieHandler _get = get;
+
+    [HttpGet("{kwestieId:guid}")]
+    // Malformed IDs still reach Guid binding and return 400 through this fallback template.
+    [HttpGet("{kwestieId}")]
+    [ProducesResponseType<KwestieDetailsResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Get(
+        [FromRoute] Guid workspaceId, [FromRoute] Guid kwestieId, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(User.FindFirst("sub")?.Value, out var userId) || userId == Guid.Empty)
+            return Unauthorized();
+
+        var result = await _get.HandleAsync(new GetKwestieQuery(workspaceId, kwestieId, userId), cancellationToken);
+        return result is null ? NotFound(null) : Ok(new KwestieDetailsResponse(
+            result.KwestieId, result.Title, result.Description, (int)result.Status, (int)result.Priority,
+            result.CreatedAt, result.UpdatedAt, result.ResolvedAt, result.ClosedAt));
+    }
 
     [HttpGet]
     [ProducesResponseType<KwestieSummaryResponse[]>(StatusCodes.Status200OK)]
