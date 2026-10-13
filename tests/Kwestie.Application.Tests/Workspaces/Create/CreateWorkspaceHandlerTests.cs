@@ -101,6 +101,9 @@ public class CreateWorkspaceHandlerTests
 
     private sealed class RecordingRepository : IWorkspaceRepository
     {
+        public Task<WorkspaceRole?> GetActiveRoleAsync(Guid workspaceId, Guid userId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public int AddCalls { get; private set; }
         public Workspace? AddedWorkspace { get; private set; }
         public WorkspaceMember? AddedMember { get; private set; }

@@ -22,7 +22,7 @@ using KwestieEntity = Kwestie.Domain.Kwesties.Kwestie;
 
 namespace Kwestie.IntegrationTests.Kwesties;
 
-public sealed class KwestieHttpTests(AuthenticationApiFactory factory) : IClassFixture<AuthenticationApiFactory>
+public sealed partial class KwestieHttpTests(AuthenticationApiFactory factory) : IClassFixture<AuthenticationApiFactory>
 {
     private const string Password = "Kwestie-HTTP-Test1!";
     private readonly AuthenticationApiFactory _factory = factory;
@@ -43,6 +43,11 @@ public sealed class KwestieHttpTests(AuthenticationApiFactory factory) : IClassF
         Assert.Equal(HttpStatusCode.Unauthorized, listResponse.StatusCode);
         using var getResponse = await client.GetAsync(DetailPath(Guid.NewGuid(), Guid.NewGuid()));
         Assert.Equal(HttpStatusCode.Unauthorized, getResponse.StatusCode);
+        foreach (var action in new[] { "start-progress", "resolve", "close" })
+        {
+            using var transitionResponse = await client.PostAsync($"{DetailPath(Guid.NewGuid(), Guid.NewGuid())}/{action}", null);
+            Assert.Equal(HttpStatusCode.Unauthorized, transitionResponse.StatusCode);
+        }
     }
 
     [Theory]
@@ -61,6 +66,11 @@ public sealed class KwestieHttpTests(AuthenticationApiFactory factory) : IClassF
         Assert.Equal(HttpStatusCode.Unauthorized, listResponse.StatusCode);
         using var getResponse = await client.GetAsync(DetailPath(Guid.NewGuid(), Guid.NewGuid()));
         Assert.Equal(HttpStatusCode.Unauthorized, getResponse.StatusCode);
+        foreach (var action in new[] { "start-progress", "resolve", "close" })
+        {
+            using var transitionResponse = await client.PostAsync($"{DetailPath(Guid.NewGuid(), Guid.NewGuid())}/{action}", null);
+            Assert.Equal(HttpStatusCode.Unauthorized, transitionResponse.StatusCode);
+        }
     }
 
     [Theory]

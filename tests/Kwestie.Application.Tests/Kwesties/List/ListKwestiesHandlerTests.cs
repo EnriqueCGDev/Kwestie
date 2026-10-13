@@ -136,6 +136,12 @@ public class ListKwestiesHandlerTests
 
     private sealed class RecordingRepository : IKwestieRepository
     {
+        public Task<KwestieEntity?> GetForUpdateAsync(Guid workspaceId, Guid kwestieId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<bool> UpdateAsync(KwestieEntity kwestie,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<KwestieDetails?> GetForWorkspaceAsync(
             Guid workspaceId, Guid kwestieId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
@@ -160,6 +166,9 @@ public class ListKwestiesHandlerTests
 
     private sealed class RecordingWorkspaceRepository : IWorkspaceRepository
     {
+        public Task<WorkspaceRole?> GetActiveRoleAsync(Guid workspaceId, Guid userId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Guid? WorkspaceId { get; init; }
         public WorkspaceMember? Member { get; init; }
         public bool IsActive { get; init; } = true;

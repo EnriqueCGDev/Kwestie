@@ -10,6 +10,30 @@ public sealed class KwestieRepository(KwestieDbContext context) : IKwestieReposi
 {
     private readonly KwestieDbContext _context = context;
 
+    public Task<KwestieEntity?> GetForUpdateAsync(
+        Guid workspaceId, Guid kwestieId, CancellationToken cancellationToken = default) =>
+        _context.Kwesties.SingleOrDefaultAsync(
+            kwestie => kwestie.WorkspaceId == workspaceId && kwestie.Id == kwestieId, cancellationToken);
+
+    public async Task<bool> UpdateAsync(KwestieEntity kwestie, CancellationToken cancellationToken = default)
+    {
+        if (_context.Entry(kwestie).State == EntityState.Detached)
+            throw new InvalidOperationException("Load the kwestie through GetForUpdateAsync before updating it.");
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException exception) when (
+            exception.Entries.Count == 1 && ReferenceEquals(exception.Entries[0].Entity, kwestie))
+        {
+            // Do not let a later save accidentally retry the losing write.
+            exception.Entries[0].State = EntityState.Detached;
+            return false;
+        }
+    }
+
     public async Task AddAsync(KwestieEntity kwestie, CancellationToken cancellationToken = default)
     {
         _context.Kwesties.Add(kwestie);

@@ -133,7 +133,7 @@ Errors:
 - **401 Unauthorized** for missing/invalid JWT or missing, malformed, or empty Guid sub.
 - **403 Forbidden**, with an empty body, for CreateKwestieAccessDeniedException. Missing Workspace, foreign user, and inactive membership yield the same response without disclosing the reason.
 
-HTTP/SQL tests use real JWT validation and isolated users/workspaces, verify committed data from a separate context, and clean up their own rows in finally. Angular supports this POST from the individual Workspace screen, with numeric priority and a creation confirmation followed by a server list reload; authentication headers come from the existing interceptor. The backend and Angular list are implemented; Categories, assignment, and state-changing endpoints remain unimplemented.
+HTTP/SQL tests use real JWT validation and isolated users/workspaces, verify committed data from a separate context, and clean up their own rows in finally. Angular supports this POST from the individual Workspace screen, with numeric priority and a creation confirmation followed by a server list reload; authentication headers come from the existing interceptor. The backend and Angular list are implemented; Categories and assignment remain unimplemented. Backend lifecycle endpoints are described below; Angular transition UI is pending.
 
 ## GET /api/workspaces/{workspaceId}/kwesties
 
@@ -188,4 +188,25 @@ Status/Priority retain the numeric values documented for the list. ResolvedAt an
 - **404 Not Found**, uniformly empty, for missing Workspace, missing/inactive membership, missing Kwestie, or a Kwestie belonging to another Workspace.
 - **400 Bad Request** for authenticated requests with malformed WorkspaceId or KwestieId, through Guid model binding. The action retains the constrained `{kwestieId:guid}` template and a fallback `{kwestieId}` template so malformed IDs reach binding rather than becoming routing 404s.
 
-Application validates active membership first; rejected access performs no Kwestie read. Infrastructure filters both identifiers and projects only these fields without tracking or writes. HTTP/SQL tests use real persisted data and isolated cleanup. POST and list behavior are unchanged. The individual GET and Angular detail UI/navigation are implemented. The guarded detail route reads both IDs from ActivatedRoute and calls this endpoint independently of the list, including direct entry/reload. It shows neutral 404/session 401 messages, offers retry for network/server errors, and cancels obsolete requests when either ID changes or the component is destroyed. Editing, deletion, and state-changing endpoints remain pending.
+Application validates active membership first; rejected access performs no Kwestie read. Infrastructure filters both identifiers and projects only these fields without tracking or writes. HTTP/SQL tests use real persisted data and isolated cleanup. POST and list behavior are unchanged. The individual GET and Angular detail UI/navigation are implemented. The guarded detail route reads both IDs from ActivatedRoute and calls this endpoint independently of the list, including direct entry/reload. It shows neutral 404/session 401 messages, offers retry for network/server errors, and cancels obsolete requests when either ID changes or the component is destroyed. Editing, deletion, and Angular transition UI remain pending.
+
+## Kwestie lifecycle endpoints
+
+These POST operations accept no request body and use the existing Bearer authentication:
+
+- `/api/workspaces/{workspaceId}/kwesties/{kwestieId}/start-progress`: Open → InProgress.
+- `/api/workspaces/{workspaceId}/kwesties/{kwestieId}/resolve`: InProgress → Resolved.
+- `/api/workspaces/{workspaceId}/kwesties/{kwestieId}/close`: Resolved → Closed.
+
+WorkspaceId and KwestieId come only from the route; UserId comes only from the validated non-empty Guid sub. Client-supplied roles or identifiers cannot override the stored Workspace membership. Active Admin may perform all three operations; active Member may start or resolve but cannot close. Configurable Workspace permissions remain future work.
+
+- **204 No Content**: transition committed, without body or tokens.
+- **400 Bad Request**: malformed route GUIDs, through existing binding.
+- **401 Unauthorized**: missing/invalid JWT or absent, malformed, or empty sub.
+- **403 Forbidden**, empty: insufficient role for an existing Kwestie in an accessible Workspace.
+- **404 Not Found**, uniformly empty: missing Workspace, missing/inactive membership, missing Kwestie, or a Kwestie in another Workspace.
+- **409 Conflict**, empty: invalid current state or optimistic concurrency conflict; no persistence details are returned.
+
+Application checks active membership, then retrieves the Kwestie filtered by both identifiers before authorizing its role. Thus Member closing an existing own Kwestie gets 403; a missing/foreign Kwestie gets 404. It calls Domain with TimeProvider and awaits persistence. Rejections commit no state/timestamp changes. SQL Server rowversion prevents two writers using the same version from both succeeding, without automatic retries. Domain and existing Create/List/Get contracts are unchanged.
+
+`20261012193023_AddKwestieRowVersion` was applied manually to local SQL Server. Real HTTP/SQL tests pass for transitions and concurrent independent requests, checking one empty 204 and one empty 409, persisted state, and lifecycle timestamps. The 409 uses `Conflict((object?)null)` to select the object overload and avoid automatic ProblemDetails generation without disabling it globally; 400, 401, 403, and 404 behavior is unchanged. Neither tests nor startup applies migrations. Angular transition controls, editing, deletion, and reopening remain unimplemented.

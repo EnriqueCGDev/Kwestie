@@ -4,6 +4,9 @@ namespace Kwestie.Application.Workspaces;
 
 public interface IWorkspaceRepository
 {
+    Task<WorkspaceRole?> GetActiveRoleAsync(
+        Guid workspaceId, Guid userId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Persists the workspace and its initial membership atomically.
     /// Completes only after both have been saved successfully.

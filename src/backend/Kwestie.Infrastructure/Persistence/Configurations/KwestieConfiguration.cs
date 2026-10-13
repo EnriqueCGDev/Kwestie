@@ -25,5 +25,6 @@ public sealed class KwestieConfiguration : IEntityTypeConfiguration<KwestieEntit
         builder.Property(k => k.UpdatedAt).IsRequired();
         builder.Property(k => k.ResolvedAt).IsRequired(false);
         builder.Property(k => k.ClosedAt).IsRequired(false);
+        builder.Property<byte[]>("RowVersion").IsRowVersion().IsRequired();
     }
 }

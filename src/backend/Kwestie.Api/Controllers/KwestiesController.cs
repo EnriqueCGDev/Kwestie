@@ -2,6 +2,7 @@ using Kwestie.Api.Contracts.Kwesties;
 using Kwestie.Application.Kwesties.Create;
 using Kwestie.Application.Kwesties.Get;
 using Kwestie.Application.Kwesties.List;
+using Kwestie.Application.Kwesties.Transition;
 using Kwestie.Domain.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,11 +13,62 @@ namespace Kwestie.Api.Controllers;
 [Authorize]
 [Route("api/workspaces/{workspaceId}/kwesties")]
 public sealed class KwestiesController(
-    CreateKwestieHandler create, ListKwestiesHandler list, GetKwestieHandler get) : ControllerBase
+    CreateKwestieHandler create, ListKwestiesHandler list, GetKwestieHandler get,
+    TransitionKwestieHandler transition) : ControllerBase
 {
     private readonly CreateKwestieHandler _create = create;
     private readonly ListKwestiesHandler _list = list;
     private readonly GetKwestieHandler _get = get;
+    private readonly TransitionKwestieHandler _transition = transition;
+
+    [HttpPost("{kwestieId}/start-progress")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<IActionResult> StartProgress([FromRoute] Guid workspaceId, [FromRoute] Guid kwestieId, CancellationToken cancellationToken) =>
+        TransitionAsync(workspaceId, kwestieId, KwestieTransition.StartProgress, cancellationToken);
+
+    [HttpPost("{kwestieId}/resolve")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<IActionResult> Resolve([FromRoute] Guid workspaceId, [FromRoute] Guid kwestieId, CancellationToken cancellationToken) =>
+        TransitionAsync(workspaceId, kwestieId, KwestieTransition.Resolve, cancellationToken);
+
+    [HttpPost("{kwestieId}/close")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<IActionResult> Close([FromRoute] Guid workspaceId, [FromRoute] Guid kwestieId, CancellationToken cancellationToken) =>
+        TransitionAsync(workspaceId, kwestieId, KwestieTransition.Close, cancellationToken);
+
+    private async Task<IActionResult> TransitionAsync(
+        Guid workspaceId, Guid kwestieId, KwestieTransition transition, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(User.FindFirst("sub")?.Value, out var userId) || userId == Guid.Empty)
+            return Unauthorized();
+
+        var result = await _transition.HandleAsync(new TransitionKwestieCommand(
+            workspaceId, kwestieId, userId, transition), cancellationToken);
+        return result switch
+        {
+            TransitionKwestieResult.Applied => NoContent(),
+            TransitionKwestieResult.NotFound => NotFound(null),
+            TransitionKwestieResult.Forbidden => Forbid(),
+            // Select the object overload: an empty 409 without automatic client-error mapping.
+            TransitionKwestieResult.Conflict => Conflict((object?)null),
+            _ => throw new InvalidOperationException("Unknown transition result.")
+        };
+    }
 
     [HttpGet("{kwestieId:guid}")]
     // Malformed IDs still reach Guid binding and return 400 through this fallback template.

@@ -53,6 +53,9 @@ public class GetWorkspaceHandlerTests
 
     private sealed class RecordingRepository : IWorkspaceRepository
     {
+        public Task<WorkspaceRole?> GetActiveRoleAsync(Guid workspaceId, Guid userId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<Workspace?> Completion { get; init; } = Task.FromResult<Workspace?>(null);
         public int GetCalls { get; private set; }
         public Guid ReceivedWorkspaceId { get; private set; }

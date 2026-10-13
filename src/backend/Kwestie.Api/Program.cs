@@ -9,6 +9,7 @@ using Kwestie.Application.Workspaces.Get;
 using Kwestie.Application.Kwesties.Create;
 using Kwestie.Application.Kwesties.Get;
 using Kwestie.Application.Kwesties.List;
+using Kwestie.Application.Kwesties.Transition;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,6 +32,7 @@ builder.Services.AddScoped<GetWorkspaceHandler>();
 builder.Services.AddScoped<CreateKwestieHandler>();
 builder.Services.AddScoped<ListKwestiesHandler>();
 builder.Services.AddScoped<GetKwestieHandler>();
+builder.Services.AddScoped<TransitionKwestieHandler>();
 
 // Add services to the container.
 

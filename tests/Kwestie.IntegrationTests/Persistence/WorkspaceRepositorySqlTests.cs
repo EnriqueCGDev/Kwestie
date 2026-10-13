@@ -54,6 +54,11 @@ public class WorkspaceRepositorySqlTests
             using var cancellation = new CancellationTokenSource();
             Assert.True(await repository.HasActiveMembershipAsync(workspaceId, adminId, cancellation.Token));
             Assert.True(await repository.HasActiveMembershipAsync(workspaceId, memberId, cancellation.Token));
+            Assert.Equal(WorkspaceRole.Admin, await repository.GetActiveRoleAsync(workspaceId, adminId, cancellation.Token));
+            Assert.Equal(WorkspaceRole.Member, await repository.GetActiveRoleAsync(workspaceId, memberId, cancellation.Token));
+            Assert.Null(await repository.GetActiveRoleAsync(workspaceId, Guid.NewGuid(), cancellation.Token));
+            Assert.Null(await repository.GetActiveRoleAsync(Guid.NewGuid(), adminId, cancellation.Token));
+            Assert.Null(await repository.GetActiveRoleAsync(inactiveWorkspaceId, adminId, cancellation.Token));
             Assert.False(await repository.HasActiveMembershipAsync(workspaceId, Guid.NewGuid()));
             Assert.False(await repository.HasActiveMembershipAsync(inactiveWorkspaceId, memberId));
             Assert.False(await repository.HasActiveMembershipAsync(inactiveWorkspaceId, adminId));
@@ -62,6 +67,8 @@ public class WorkspaceRepositorySqlTests
             cancellation.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                 repository.HasActiveMembershipAsync(workspaceId, adminId, cancellation.Token));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                repository.GetActiveRoleAsync(workspaceId, adminId, cancellation.Token));
 
             var persistedMembers = await readContext.WorkspaceMembers.AsNoTracking()
                 .Where(m => m.WorkspaceId == workspaceId || m.WorkspaceId == inactiveWorkspaceId).ToListAsync();

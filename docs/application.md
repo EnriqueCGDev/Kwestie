@@ -45,10 +45,15 @@ Kwesties/
 │   ├── GetKwestieQuery.cs
 │   ├── GetKwestieHandler.cs
 │   └── KwestieDetails.cs
-└── List/
-    ├── ListKwestiesQuery.cs
-    ├── ListKwestiesHandler.cs
-    └── KwestieSummary.cs
+├── List/
+│   ├── ListKwestiesQuery.cs
+│   ├── ListKwestiesHandler.cs
+│   └── KwestieSummary.cs
+└── Transition/
+    ├── KwestieTransition.cs
+    ├── TransitionKwestieCommand.cs
+    ├── TransitionKwestieHandler.cs
+    └── TransitionKwestieResult.cs
 Workspaces/
 ├── IWorkspaceRepository.cs
 ├── Create/
@@ -95,9 +100,11 @@ API registers CreateKwestieHandler as scoped and exposes protected POST /api/wor
 
 ## Application Abstractions
 
-`IKwestieRepository` lives in Application and exposes AddAsync for creation, ListForWorkspaceAsync for lightweight, ordered Kwestie summaries, and GetForWorkspaceAsync for nullable individual details scoped by both WorkspaceId and KwestieId. Infrastructure implements these with EF Core, including `SaveChangesAsync` only within `AddAsync`. Application has no separate saving or unit-of-work abstraction.
+`IKwestieRepository` lives in Application and exposes AddAsync for creation, ListForWorkspaceAsync for lightweight, ordered Kwestie summaries, and GetForWorkspaceAsync for nullable individual details scoped by both WorkspaceId and KwestieId. GetForUpdateAsync loads an entity scoped by both identifiers for Domain behavior; UpdateAsync saves it and returns false on an optimistic concurrency conflict. Infrastructure implements these with EF Core, saving within AddAsync or UpdateAsync. Application has no separate saving or unit-of-work abstraction.
 
 `IWorkspaceRepository.HasActiveMembershipAsync(workspaceId, userId, cancellationToken)` returns true only for an active membership in an existing workspace, regardless of role. Infrastructure uses a single read-only AnyAsync over WorkspaceMembers, matching both identifiers and IsActive; the workspace FK guarantees existence without another query.
+
+GetActiveRoleAsync uses the same identifiers and activity requirement, returning the WorkspaceRole or null without a separate workspace query. Existing HasActiveMembershipAsync consumers are unchanged.
 
 ## Time
 
@@ -116,6 +123,14 @@ Number/Key visible references remain undefined. Angular creation, listing, and W
 GetKwestieQuery contains WorkspaceId, KwestieId, and UserId. GetKwestieHandler awaits HasActiveMembershipAsync before any Kwestie read, allowing either active Workspace role. Denied access returns null without calling IKwestieRepository. With access it awaits GetForWorkspaceAsync using both route identifiers. No matching Kwestie, including one belonging to another Workspace, also returns null. CancellationToken is forwarded to both operations; infrastructure failures propagate.
 
 The Application-owned KwestieDetails projection contains only KwestieId, Title, Description, Status, Priority, CreatedAt, UpdatedAt, nullable ResolvedAt, and nullable ClosedAt. API registers the handler as scoped and maps this result to the nine-field HTTP contract, or a uniform empty 404. Application remains independent of EF, HTTP, JWT, and Infrastructure. Unit tests verify identifier/cancellation forwarding, both active roles, no detail read after access denial, null results, and awaiting both operations. HTTP/SQL coverage checks persisted dates, exact fields, numeric enums, unavailable cases, malformed identifiers, and read-only behavior. POST and list contracts are unchanged; Angular detail navigation uses this GET and is implemented.
+
+## Transition Kwestie
+
+TransitionKwestieCommand contains WorkspaceId, KwestieId, UserId, and one of StartProgress, Resolve, or Close. TransitionKwestieHandler first awaits GetActiveRoleAsync, then GetForUpdateAsync using both resource identifiers. Missing/inactive membership or a missing/foreign Kwestie returns NotFound. Only after verifying the Kwestie does the centralized V1 policy allow active Admin to perform all three transitions and active Member to start or resolve; Member cannot close. Insufficient role returns Forbidden. Configurable Workspace permissions are planned and unimplemented.
+
+The handler gets the timestamp from TimeProvider and invokes the existing Domain method. A DomainException from an invalid lifecycle transition becomes Conflict without saving; successful behavior is saved through UpdateAsync. A concurrency failure also becomes Conflict, without retrying. Applied is returned only after persistence completes. CancellationToken is forwarded to every asynchronous operation; cancellation and unrelated infrastructure failures propagate. Application has no HTTP, EF, Identity, or JWT dependency.
+
+API supplies identifiers only from the route and validated sub, mapping Applied/NotFound/Forbidden/Conflict to empty 204/404/403/409 responses. SQL Server concurrency uses Infrastructure's shadow rowversion; AddKwestieRowVersion was applied manually locally, and real HTTP/SQL transition and concurrency tests pass. Domain lifecycle rules and Create/List/Get contracts are unchanged.
 
 ## Create Workspace
 
@@ -173,19 +188,19 @@ LogoutSessionCommand contains only the nullable refresh token. LogoutSessionHand
 
 ## Validation Boundaries
 
-Domain enforces intrinsic rules using the entity's state and input data. Application leaves those checks to the constructor without duplicating, catching, or translating them.
+Domain enforces intrinsic rules using the entity's state and input data. Construction invariants propagate unchanged from Application. TransitionKwestieHandler translates only Domain lifecycle rejection into its Conflict result; it does not duplicate the state machine.
 
 Checks requiring other data or coordination belong to Application orchestration. Create Kwestie requires an existing workspace and an active creator membership. Category/workspace compatibility is not checked because Categories are not implemented. The current command retains optional CategoryId and its Domain invariant; the implemented HTTP create contract excludes CategoryId and supplies null until Categories are implemented.
 
 ## Current Implementation Scope
 
-Implemented: Create, List, and Get Kwestie use cases, IKwestieRepository, and feature tests in Kwestie.Application.Tests/Kwesties/Create, List, and Get.
+Implemented: Create, List, Get, and Transition Kwestie use cases, IKwestieRepository, and feature tests in Kwestie.Application.Tests/Kwesties. Transition unit tests cover the V1 policy, state/timestamp preservation on rejection, awaiting each step, cancellation, and concurrency results. Real HTTP/SQL transition tests pass with AddKwestieRowVersion applied manually, including concurrency, persistence, timestamps, and empty 204/409 responses.
 
 Create Workspace is implemented through `CreateWorkspaceCommand`, `CreateWorkspaceHandler`, `CreateWorkspaceResult`, and `IWorkspaceRepository`. Tests use a recording fake and fixed TimeProvider to verify the Workspace/Admin membership pair, shared identifiers/timestamps, cancellation forwarding, waiting for persistence, persistence failure propagation, and Domain rejection without a repository call. Concrete persistence and repository DI registration are implemented in Infrastructure; AddWorkspaces was applied manually and Workspace SQL persistence/atomicity is validated. Create/List/Get handlers are registered in API and exposed through protected POST/GET /api/workspaces and GET /api/workspaces/{workspaceId}, with listing/creation UI and Angular Workspace navigation implemented. The protected Create/List/Get Kwesties endpoints are also implemented; membership management remains pending.
 
 Register is also implemented through RegisterUserCommand, RegisterUserHandler, RegisterUserResult, and IUserRegistration. Unit tests use a small fake to verify input/cancellation forwarding and success/error results; a separate Infrastructure integration test verifies real Identity user persistence.
 
-Logout unit tests verify token/cancellation forwarding and waiting for revocation. Login and Refresh unit tests use small fakes to verify input/cancellation forwarding, exact user IDs, both tokens and expirations, and no generation on rejection. Result tests reject empty IDs, blank tokens, and invalid UTC expiration values. IntegrationTests validates credential checking and the full Login + Refresh + JWT flow against SQL Server with cleanup in finally. With 20260929220522_AddRefreshTokens applied locally, SQL tests have passed for issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. The latest full suite passed on 2026-10-12 with AddWorkspaces applied, individual Workspace access, and Create/List/Get Kwesties HTTP/SQL coverage: 200 tests, 200 passed, 0 failed, 0 skipped. Database-free tests cover JWT, mapping, DI, configuration, and malformed refresh rejection.
+Logout unit tests verify token/cancellation forwarding and waiting for revocation. Login and Refresh unit tests use small fakes to verify input/cancellation forwarding, exact user IDs, both tokens and expirations, and no generation on rejection. Result tests reject empty IDs, blank tokens, and invalid UTC expiration values. IntegrationTests validates credential checking and the full Login + Refresh + JWT flow against SQL Server with cleanup in finally. With 20260929220522_AddRefreshTokens applied locally, SQL tests have passed for issuance, hash-only persistence, rotation, reuse rejection, expiration, and concurrency. Final validation with AddKwestieRowVersion applied manually: 233 tests, 233 passed, 0 failed, 0 skipped (Domain 47, Application 86, Integration 100), including real Kwestie transitions/concurrency. Database-free tests cover JWT, mapping, DI, configuration, and malformed refresh rejection.
 
 Create Kwestie tests use local recording repository fakes and a fixed time provider. They cover the created entity and result, generated ID, timestamps, unassigned number, cancellation forwarding to both repositories, active Admin/Member access, each access rejection without persistence, awaiting validation and saving, query failure propagation, and Domain rejection without a repository call.
 

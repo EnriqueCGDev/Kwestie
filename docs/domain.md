@@ -232,7 +232,7 @@ The Domain currently enforces only the sequence:
 InProgress -> Resolved -> Closed
 ```
 
-Rules describing which user is allowed to close a Kwestie belong to Application/authorization and are not yet defined.
+Application enforces the V1 Workspace policy: active Admin and Member may start progress or resolve; only active Admin may close. Missing/inactive membership permits no transition. Configurable permissions per Workspace are planned and unimplemented. Domain continues to enforce only its existing lifecycle rules; it has no role checks or persistence concurrency property.
 
 ## Workspaces
 

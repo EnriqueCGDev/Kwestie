@@ -78,6 +78,10 @@ A separate repository integration test now verifies a real SQL Server round trip
 
 `KwestieRepository` implements Application's `IKwestieRepository`. `AddAsync` tracks the entity and awaits `SaveChangesAsync` with the caller's cancellation token. There is no separate UnitOfWork because the current use case does not require one.
 
+GetForUpdateAsync filters by WorkspaceId and KwestieId in SQL and loads the tracked Domain entity. UpdateAsync awaits SaveChangesAsync with CancellationToken; it returns false only for that entity's DbUpdateConcurrencyException and detaches the losing entry so a later save cannot retry it. Other persistence failures and cancellation propagate. Domain methods alone change status and lifecycle dates.
+
+Kwesties has a required shadow RowVersion configured with IsRowVersion. SQL Server generates its eight-byte value on insert/update; EF includes the original version in UPDATE's predicate and detects a lost write. There is no Domain property or HTTP field for it, no retry, and no process-local locking. AddKwestieRowVersion was applied manually locally; the full integration suite passes, including real concurrent transitions and existing insertion/read coverage.
+
 ListForWorkspaceAsync filters Kwesties strictly by WorkspaceId in SQL, uses AsNoTracking, and projects only KwestieId, Title, Description, Status, Priority, and CreatedAt into Application-owned KwestieSummary records. It orders by CreatedAt then Id ascending and awaits ToListAsync with the caller's CancellationToken. It performs no writes or SaveChangesAsync and does not materialize full Domain entities. ListKwestiesHandler checks active membership through the existing workspace contract before invoking this read; the repository itself receives only WorkspaceId.
 
 Real HTTP/SQL coverage verifies both active roles, a valid empty list, workspace isolation, stable order including tied timestamps, numeric status/priority, exact response fields, an empty ChangeTracker, unchanged stored rows, and cancellation. Only isolated test users/workspaces/Kwesties are cleaned up. No mapping, migration, or snapshot change is required.
@@ -88,7 +92,7 @@ GetForWorkspaceAsync filters by WorkspaceId and KwestieId together in SQL, uses 
 
 `WorkspaceConfiguration` maps `Workspaces` with an Application-generated Guid primary key (`ValueGeneratedNever`), required Name without a maximum length, and required CreatedAt. `WorkspaceMemberConfiguration` maps required WorkspaceId, UserId, numeric Role, JoinedAt, and IsActive to `WorkspaceMembers`. Its composite primary key `(WorkspaceId, UserId)` allows only one membership per user within a workspace; UserId has an FK index.
 
-Memberships reference `Workspaces.Id` with cascade deletion and `AspNetUsers.Id` through ApplicationUser with `DeleteBehavior.NoAction`. SQL Server's NO ACTION prevents physically deleting a user while memberships exist, without silently deleting those memberships. Deleting a workspace cascades only to its memberships. These mappings add no navigation properties or Identity/EF dependencies to Domain. Kwesties mapping remains unchanged, including the absence of a Kwesties.WorkspaceId FK.
+Memberships reference `Workspaces.Id` with cascade deletion and `AspNetUsers.Id` through ApplicationUser with `DeleteBehavior.NoAction`. SQL Server's NO ACTION prevents physically deleting a user while memberships exist, without silently deleting those memberships. Deleting a workspace cascades only to its memberships. These mappings add no navigation properties or Identity/EF dependencies to Domain. Kwesties still has no WorkspaceId FK; its only new mapping is the shadow RowVersion.
 
 `WorkspaceRepository` implements `IWorkspaceRepository` and is scoped in AddInfrastructure. AddAsync tracks both the Workspace and initial membership in the same context and awaits one SaveChangesAsync with the caller's cancellation token. EF Core's normal transaction makes the pair atomic; no manual transaction or separate UnitOfWork is added.
 
@@ -99,6 +103,8 @@ HasActiveMembershipAsync uses a single AnyAsync over WorkspaceMembers, matching 
 GetForUserAsync joins Workspaces and WorkspaceMembers in one AsNoTracking query, filtering WorkspaceId, UserId, and IsActive together. It forwards cancellation to SingleOrDefaultAsync, returns null for any unavailable workspace, and does not call HasActiveMembershipAsync, SaveChangesAsync, or load a foreign workspace first. The membership composite key permits at most one matching workspace. Real HTTP/SQL tests cover both roles, isolation, inactive/missing cases, and an empty ChangeTracker after this read.
 
 Database-free tests cover both mappings, constructor materialization (including restoring stored IsActive), repository DI/lifetime, one awaited save, cancellation forwarding, and model/snapshot agreement. SQL tests passed against the local database with AddWorkspaces manually applied and shared User Secrets. They verify separate-context round trips, user deletion rejection, workspace membership cascade cleanup, and rollback of a workspace insert when the membership references a nonexistent user. Tests remove only their own temporary data and never apply migrations.
+
+GetActiveRoleAsync projects nullable WorkspaceRole from WorkspaceMembers with both identifiers and IsActive, using AsNoTracking and SingleOrDefaultAsync with CancellationToken. Null covers missing Workspace, missing membership, and inactive membership. The existing FK avoids another existence query. HasActiveMembershipAsync and its callers remain unchanged. Application owns the V1 transition policy; Infrastructure only supplies the stored role and persists Domain changes.
 
 ## Configuration
 
@@ -136,11 +142,17 @@ Migrations belong to Infrastructure. `20260924234735_InitialCreate` exists and w
 
 `20261007152213_AddWorkspaces` was applied manually to the local Kwestie database. It creates only Workspaces, WorkspaceMembers, their primary keys, the cascading workspace FK, the NO ACTION user FK, and the UserId index. The snapshot includes both workspace entities; older migrations and the Kwesties, Identity, and RefreshTokens mappings are unchanged.
 
-Database-free checks verify that EF's model matches the snapshot. HasPendingModelChanges = false describes model/snapshot agreement, not migration application to SQL Server. With AddWorkspaces manually applied, build and the full suite passed on 2026-10-12: 200 tests, 200 passed, 0 failed, 0 skipped, including Workspace persistence/atomicity, individual Workspace access/no tracking, and Create/List/Get Kwesties HTTP/SQL coverage. No test creates a database or applies migrations automatically.
+`20261012193023_AddKwestieRowVersion` was applied manually to local SQL Server. It adds only the required rowversion column to Kwesties; existing migrations are unchanged. The snapshot includes this concurrency token. SQL transition tests check migration application before creating fixtures, and tests/startup never apply it. Real HTTP/SQL transition and concurrency tests pass.
+
+Database-free checks verify that EF's model matches the snapshot. HasPendingModelChanges = false describes model/snapshot agreement, not migration application to SQL Server. AddKwestieRowVersion application was confirmed separately by the developer. No test creates a database or applies migrations automatically.
 
 EF Core Design is a private tooling dependency in Infrastructure and the API startup project, supporting the Infrastructure target/API startup workflow. Future migration generation and application remain manual steps after model review and local User Secrets configuration.
 
+Final transition validation: build succeeds with no errors or warnings; 233 tests, 233 passed, 0 failed, 0 skipped. Domain passes 47/47, Application 86/86, Integration 100/100. `git diff --check` passes. Real SQL concurrency tests verify one committed transition with 204, a losing request with 409, persisted state, and lifecycle timestamps. API's empty 409 response is implemented with `Conflict((object?)null)` and validated by HTTP tests.
+
 ## Current Implementation Scope
+
+Backend state-transition endpoints and the centralized Application policy are implemented: active Admin and Member may start or resolve; only Admin may close. Configurable Workspace permissions and Angular transition controls remain pending. Passing HTTP/SQL coverage includes role/state rejection without writes, lifecycle timestamps, isolated cleanup, cancellation, and concurrent independent request contexts against real SQL Server.
 
 Implemented: SQL Server context and mapping, repository insertion with saving, dependency injection registration, shared API/test User Secrets configuration, InitialCreate, AddIdentity, and AddRefreshTokens applied locally, a verified real SQL Server repository round-trip test, and the Identity infrastructure base with Guid users and EF stores. Model, materialization, and Identity registration tests are available without a database.
 

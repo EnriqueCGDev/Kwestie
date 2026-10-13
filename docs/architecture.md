@@ -135,6 +135,10 @@ Runtime calls may reach Infrastructure through abstractions, but source-code dep
 
 ## Cross-Entity and Workspace Rules
 
+TransitionKwestieHandler centralizes the V1 transition policy in Application. It awaits the active stored Workspace role, then loads the Kwestie using both route identifiers before checking permissions. Admin may start, resolve, and close; Member may start and resolve. Unavailable resources/memberships return NotFound, insufficient role returns Forbidden, and Domain lifecycle rejection or a lost concurrent write returns Conflict. Domain methods receive TimeProvider timestamps and retain the state machine. Configurable Workspace permissions remain planned and unimplemented.
+
+Infrastructure loads a tracked Kwestie with a shadow SQL Server RowVersion and saves through the existing repository. The concurrency predicate prevents silent overwrites across independent contexts/processes; a lost write is not retried. There is no new Domain property, UnitOfWork, manual transaction, or production in-memory lock. AddKwestieRowVersion was applied manually locally, and conflicts have been validated against real SQL Server.
+
 A single domain entity should not perform infrastructure queries.
 
 Rules that require checking other data, such as:
@@ -233,6 +237,8 @@ Workspace and WorkspaceMember are mapped without Domain changes or navigations. 
 
 Persistence configuration belongs in Infrastructure.
 
+`20261012193023_AddKwestieRowVersion` adds only a required SQL Server rowversion to Kwesties through Fluent API as a shadow concurrency token. It is included in the snapshot and was applied manually to local SQL Server. Existing migrations and the Domain model are unchanged. Real lifecycle writes and concurrent independent requests have passed integration validation.
+
 Domain must not contain EF Core attributes or persistence-specific dependencies.
 
 EF Core Fluent API configures the current entity. Migrations belong to Infrastructure and are applied manually; tests do not create databases or apply migrations. See [Infrastructure Layer](infrastructure.md) for configuration and scope.
@@ -247,9 +253,11 @@ AuthenticationController adapts HTTP requests to Application commands and maps r
 
 WorkspacesController requires Bearer authorization and obtains user identity exclusively from a valid, non-empty Guid sub claim. Its create request accepts only Name, rejecting unknown JSON fields; the creator cannot be supplied by the client. POST returns 201 without an invented Location and maps Domain validation failures to 400. GET /api/workspaces returns only workspaces with active memberships for the JWT user, ordered by CreatedAt then WorkspaceId ascending. This is query behavior, not a Domain rule. Infrastructure performs the asynchronous no-tracking query; HTTP DTOs remain in API. The individual GET reuses WorkspaceResponse and returns a uniform empty 404 for missing, foreign, or inactive workspaces. A malformed route Guid uses the standard 400 binding response. Workspace listing/creation UI, individual Workspace navigation, and Create Kwestie UI are implemented; membership management remains pending.
 
-KwestiesController exposes protected POST /api/workspaces/{workspaceId}/kwesties, supplies the route WorkspaceId and JWT sub creator, and delegates membership validation to Application. Its closed JSON contract accepts only Title, optional Description, and numeric Priority; CategoryId is null. It maps Domain rejection to 400 ProblemDetails, access denial to a uniform empty 403, and success to 201 with only kwestieId and no Location. It also exposes GET on the same route through scoped ListKwestiesHandler. Application first checks active membership, returning null on rejection without reading Kwesties; Infrastructure projects six summary fields filtered by WorkspaceId with AsNoTracking, ordered by CreatedAt then Id. API returns 200 with numeric status/priority (including []), a uniform empty 404 for unavailable access, or standard 400 for malformed route IDs. POST is unchanged. GetKwestieHandler also checks membership before a nullable projection filtered by both WorkspaceId and KwestieId. The individual GET returns nine fields with lifecycle dates or a uniform empty 404; its constrained Guid route has an unconstrained fallback on the same action to preserve malformed-ID binding 400s. Angular listing and detail UI/navigation are implemented; visible Number/Key references remain pending. No schema changes are needed.
+KwestiesController exposes protected POST /api/workspaces/{workspaceId}/kwesties, supplies the route WorkspaceId and JWT sub creator, and delegates membership validation to Application. Its closed JSON contract accepts only Title, optional Description, and numeric Priority; CategoryId is null. It maps Domain rejection to 400 ProblemDetails, access denial to a uniform empty 403, and success to 201 with only kwestieId and no Location. It also exposes GET on the same route through scoped ListKwestiesHandler. Application first checks active membership, returning null on rejection without reading Kwesties; Infrastructure projects six summary fields filtered by WorkspaceId with AsNoTracking, ordered by CreatedAt then Id. API returns 200 with numeric status/priority (including []), a uniform empty 404 for unavailable access, or standard 400 for malformed route IDs. POST is unchanged. GetKwestieHandler also checks membership before a nullable projection filtered by both WorkspaceId and KwestieId. The individual GET returns nine fields with lifecycle dates or a uniform empty 404; its constrained Guid route has an unconstrained fallback on the same action to preserve malformed-ID binding 400s. Angular listing and detail UI/navigation are implemented; visible Number/Key references remain pending. Create/List/Get contracts are unchanged. Lifecycle writes use the applied rowversion migration.
 
 ## Testing
+
+Transition unit coverage checks the centralized policy, identifiers/cancellation, awaiting membership/read/save, lifecycle timestamps, and rejection without mutation or saving. Passing HTTP/SQL tests exercise the three POST actions, both roles, uniform unavailable responses, JWT/sub and GUID rejection, cancellation, and simultaneous independent request contexts. A test-only save barrier makes concurrency deterministic; the production guarantee comes from SQL Server rowversion. With AddKwestieRowVersion applied manually, concurrency tests verify one empty 204 and one empty 409, persisted state, and lifecycle timestamps from a separate context. API uses `Conflict((object?)null)` for the empty 409 without globally disabling ProblemDetails or changing 400/401/403/404 behavior.
 
 The solution currently contains:
 
@@ -277,9 +285,11 @@ IntegrationTests contains:
 - Database-free refresh tests for mapping, FK/cascade, unique hash index, rowversion, absence of raw storage, DI, options, and malformed input rejection.
 - Passing SQL refresh tests for issuance, hash-only persistence, rotation, reuse rejection, expiration, concurrent consumption, and the complete Login + Refresh + JWT flow, with user/token cleanup in finally.
 
-The full real test suite requires the local Kwestie database with InitialCreate, AddIdentity, AddRefreshTokens, and AddWorkspaces applied, plus ConnectionStrings:Kwestie in shared API User Secrets. All four migrations are applied manually locally. Tests remove their own data in finally and never create the database or apply migrations. The full suite passed on 2026-10-12, including individual Workspace access/no tracking, Create/List/Get Kwesties HTTP contracts, active-role persistence, uniform access rejection, and SQL-generated Number: 200 tests, 200 passed, 0 failed, 0 skipped. Model/snapshot agreement is checked separately from database migration application; HasPendingModelChanges is false.
+The full real test suite requires the local Kwestie database with InitialCreate, AddIdentity, AddRefreshTokens, AddWorkspaces, and AddKwestieRowVersion applied, plus ConnectionStrings:Kwestie in shared API User Secrets. All five migrations were applied manually locally. Tests remove their own data in finally and never create the database or apply migrations. Model/snapshot agreement is checked separately from database migration application; HasPendingModelChanges is false.
 
 Domain and current Application tests run without database, API, or infrastructure dependencies.
+
+Final transition validation: build succeeds with no errors or warnings, `git diff --check` passes, and all 233 tests pass with 0 failed and 0 skipped. Domain passes 47/47, Application 86/86, and Integration 100/100, including real SQL transition/concurrency coverage and empty 409 responses.
 
 ## C# Conventions
 

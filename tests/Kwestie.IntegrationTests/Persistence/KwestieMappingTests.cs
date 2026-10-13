@@ -32,6 +32,12 @@ public class KwestieMappingTests
         Assert.Empty(entity.GetForeignKeys());
         Assert.Null(entity.FindProperty(nameof(KwestieEntity.Title))!.GetMaxLength());
         Assert.Null(entity.FindProperty(nameof(KwestieEntity.Description))!.GetMaxLength());
+        var rowVersion = entity.FindProperty("RowVersion")!;
+        Assert.True(rowVersion.IsShadowProperty());
+        Assert.True(rowVersion.IsConcurrencyToken);
+        Assert.False(rowVersion.IsNullable);
+        Assert.Equal(ValueGenerated.OnAddOrUpdate, rowVersion.ValueGenerated);
+        Assert.Equal("rowversion", rowVersion.GetColumnType());
     }
 
     [Fact]
@@ -48,7 +54,8 @@ public class KwestieMappingTests
             ["Priority"] = KwestiePriority.High, ["CreatedById"] = Guid.NewGuid(),
             ["AssignedToId"] = Guid.NewGuid(), ["CategoryId"] = Guid.NewGuid(),
             ["CreatedAt"] = createdAt, ["UpdatedAt"] = createdAt.AddHours(3),
-            ["ResolvedAt"] = createdAt.AddHours(2), ["ClosedAt"] = createdAt.AddHours(3)
+            ["ResolvedAt"] = createdAt.AddHours(2), ["ClosedAt"] = createdAt.AddHours(3),
+            ["RowVersion"] = new byte[8]
         };
         var values = new object[entity.GetProperties().Count()];
         foreach (var property in entity.GetProperties())
@@ -59,7 +66,7 @@ public class KwestieMappingTests
         var restored = Assert.IsType<KwestieEntity>(
             materializer(new MaterializationContext(new ValueBuffer(values), context)));
 
-        foreach (var property in entity.GetProperties())
+        foreach (var property in entity.GetProperties().Where(property => !property.IsShadowProperty()))
             Assert.Equal(expected[property.Name], property.PropertyInfo!.GetValue(restored));
     }
 }
